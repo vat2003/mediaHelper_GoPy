@@ -95,3 +95,9 @@ Desktop.ini
 # Ignore output directory if any
 output/
 temp/
+
+#assets files
+*.mp4
+*.flv
+*.mov
+*.mp3
