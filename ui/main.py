@@ -1,9 +1,11 @@
 # ui/main.py
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QTabWidget, QVBoxLayout,
-    QPushButton, QLabel, QFileDialog, QLineEdit, QGridLayout, QComboBox, QMessageBox
+    QPushButton, QLabel, QFileDialog, QLineEdit, QGridLayout, QComboBox, QMessageBox, QProgressBar, QTextEdit
 )
 from helpers import run_go_convert
+from workers import BaseWorker
+from functools import partial
 
 class ConvertTab(QWidget):
     def __init__(self):
@@ -48,6 +50,17 @@ class ConvertTab(QWidget):
         self.convert_btn = QPushButton("🚀 Convert Now")
         self.convert_btn.clicked.connect(self.convert_file)
         layout.addWidget(self.convert_btn, 4, 0, 1, 3)
+        
+        self.progress_bar = QProgressBar()
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
+        self.stop_btn = QPushButton("🛑 Dừng")
+        self.stop_btn.clicked.connect(self.stop_worker)
+
+        layout.addWidget(self.progress_bar, 5, 0, 1, 3)
+        layout.addWidget(self.log_text, 6, 0, 1, 3)
+        layout.addWidget(self.stop_btn, 7, 0, 1, 3)
+
 
         self.setLayout(layout)
 
@@ -66,14 +79,32 @@ class ConvertTab(QWidget):
         output_folder = self.output_path.text()
         input_ext = self.input_format_combo.currentText()
         output_ext = self.output_format_combo.currentText()
-        try:
-            success = run_go_convert(input_folder, output_folder, input_ext, output_ext)
-            if success:
-                QMessageBox.information(self, "Success", "Convert thành công!")
-            else:
-                QMessageBox.critical(self, "Failed", "Convert thất bại! Kiểm tra lại đầu vào hoặc định dạng.")
-        except Exception as e:
-            QMessageBox.critical(self, "Lỗi", f"Đã xảy ra lỗi: {str(e)}")
+        
+        self.worker = BaseWorker(
+            partial(run_go_convert, input_path=input_folder, output_path=output_folder,
+            input_ext=input_ext, output_ext=output_ext)
+        )
+        self.worker.progress.connect(self.update_progress)
+        self.worker.log.connect(self.append_log)
+        self.worker.finished.connect(self.on_convert_finished)
+        self.worker.start()
+
+    def update_progress(self, value):
+        self.progress_bar.setValue(value)
+
+    def append_log(self, message):
+        self.log_text.append(message)
+
+    def on_convert_finished(self, success):
+        self.convert_btn.setEnabled(True)
+        if success:
+            QMessageBox.information(self, "Thành công", "Đã convert xong!")
+        else:
+            QMessageBox.warning(self, "Dừng / Lỗi", "Convert đã bị dừng hoặc có lỗi.")
+
+    def stop_worker(self):
+        if self.worker and self.worker.isRunning():
+            self.worker.stop()
 
 class TracklistTab(QWidget):
     def __init__(self):
