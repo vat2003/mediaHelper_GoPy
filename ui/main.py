@@ -3,13 +3,124 @@ from PyQt6.QtWidgets import (
     QApplication, QWidget, QTabWidget, QVBoxLayout,
     QPushButton, QLabel, QFileDialog, QLineEdit, QGridLayout, QComboBox, QMessageBox, QProgressBar, QTextEdit, QHBoxLayout
 )
-from helpers import run_go_convert
+from helpers import run_go_convert, run_go_loop
 from workers import BaseWorker
 from functools import partial
+
+class LoopTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.worker = None  # Khởi tạo worker là None
+        layout = QGridLayout()
+
+        # Input Folder
+        input_label = QLabel("🎬 Input Folder:")
+        self.input_path = QLineEdit()
+        input_browse_btn = QPushButton("Browse")
+        input_browse_btn.clicked.connect(self.input_browse_folder)
+
+        layout.addWidget(input_label, 0, 0)
+        layout.addWidget(self.input_path, 0, 1)
+        layout.addWidget(input_browse_btn, 0, 2)
+
+        # Output Folder
+        output_label = QLabel("📁 Output Folder:")
+        self.output_path = QLineEdit()
+        output_browse_btn = QPushButton("Browse")
+        output_browse_btn.clicked.connect(self.output_browse_folder)
+
+        layout.addWidget(output_label, 2, 0)
+        layout.addWidget(self.output_path, 2, 1)
+        layout.addWidget(output_browse_btn, 2, 2)
+
+        # Loop Options (duration or count)
+        loop_value_label = QLabel("🔁 Loop:")
+        self.loop_value_input = QLineEdit()
+        self.loop_value_input.setPlaceholderText("Số phút hoặc số lần")
+
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["duration", "count"])
+
+        # Layout con cho input và combobox (50% - 50%)
+        loop_layout = QHBoxLayout()
+        loop_layout.addWidget(self.loop_value_input)
+        loop_layout.addWidget(self.mode_combo)
+
+        layout.addWidget(loop_value_label, 3, 0)
+        layout.addLayout(loop_layout, 3, 1, 1, 2)
+
+        # Loop button
+        self.convert_btn = QPushButton("🚀 Loop Now")
+        self.convert_btn.clicked.connect(self.loop_file)
+        layout.addWidget(self.convert_btn, 4, 0, 1, 3)
+        
+        self.progress_bar = QProgressBar()
+        self.stop_btn = QPushButton("🛑 Stop")
+        self.stop_btn.clicked.connect(self.stop_worker)
+
+        # Layout con chứa progress bar và stop button
+        progress_layout = QHBoxLayout()
+        progress_layout.addWidget(self.progress_bar, 4)  # 80%
+        progress_layout.addWidget(self.stop_btn, 1)       # 20%
+        layout.addLayout(progress_layout, 5, 0, 1, 3)
+
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
+        layout.addWidget(self.log_text, 6, 0, 1, 3)
+
+        self.setLayout(layout)
+
+    def input_browse_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Input Folder")
+        if folder:
+            self.input_path.setText(folder)
+
+    def output_browse_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Output Folder")
+        if folder:
+            self.output_path.setText(folder)
+
+    def loop_file(self):
+        self.convert_btn.setEnabled(False)  # Vô hiệu hóa nút khi đang chạy
+        input_folder = self.input_path.text()
+        output_folder = self.output_path.text()
+        loop_value = self.loop_value_input.text()
+        mode = self.mode_combo.currentText()
+        
+        self.worker = BaseWorker(
+            partial(run_go_loop, 
+                    input_path=input_folder, 
+                    output_path=output_folder,
+                    loop_value=loop_value,
+                    mode=mode
+                )
+        )
+        self.worker.progress.connect(self.update_progress)
+        self.worker.log.connect(self.append_log)
+        self.worker.finished.connect(self.on_loop_finished)
+        self.worker.start()
+
+    def update_progress(self, value):
+        self.progress_bar.setValue(value)
+
+    def append_log(self, message):
+        self.log_text.append(message)
+
+    def on_loop_finished(self, success):
+        self.convert_btn.setEnabled(True)
+        if success:
+            QMessageBox.information(self, "Thành công", "Đã Loop xong!")
+        else:
+            QMessageBox.warning(self, "Dừng / Lỗi", "Loop đã bị dừng hoặc có lỗi.")
+
+    def stop_worker(self):
+        if self.worker and self.worker.isRunning():
+            self.worker.stop()
 
 class ConvertTab(QWidget):
     def __init__(self):
         super().__init__()
+        self.worker = None  # Khởi tạo worker là None
         layout = QGridLayout()
 
         # Input Folder
@@ -98,6 +209,7 @@ class ConvertTab(QWidget):
             self.output_path.setText(folder)
 
     def convert_file(self):
+        self.convert_btn.setEnabled(False)  # Vô hiệu hóa nút khi đang chạy
         input_folder = self.input_path.text()
         output_folder = self.output_path.text()
         input_ext = self.input_format_combo.currentText()
@@ -153,6 +265,7 @@ class MainWindow(QWidget):
 
         self.tabs = QTabWidget()
         self.tabs.addTab(ConvertTab(), "Convert")
+        self.tabs.addTab(LoopTab(), "Loop")
         self.tabs.addTab(TracklistTab(), "Tracklist")
         self.tabs.addTab(DownloadTab(), "Download")
 

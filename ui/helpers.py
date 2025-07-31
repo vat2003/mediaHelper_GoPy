@@ -3,6 +3,48 @@ import os
 import glob
 from pathlib import Path
 
+def run_go_loop(worker, input_path, output_path, loop_value="1", mode="default"):
+    try:
+        input_files = glob.glob(os.path.join(input_path, "*"))
+        total = len(input_files)
+
+        if total == 0:
+            worker.log.emit("⚠ Không tìm thấy file cần loop.")
+            return False
+        
+        exe_path = os.path.abspath("../go_modules/loop/go_loop")
+
+        for idx, file_path in enumerate(input_files):
+            if worker.is_stopped():
+                worker.log.emit("🛑 Dừng loop theo yêu cầu.")
+                return False
+            
+            filename = Path(file_path).stem
+            ext = Path(file_path).suffix
+            output_file = os.path.join(output_path, f"{filename}_looped{ext}")
+
+            cmd = [exe_path, file_path, output_file, loop_value, mode]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
+
+            if result.returncode != 0:
+                worker.log.emit(f"❌ Lỗi Loop: {Path(file_path).as_posix()}")
+                worker.log.emit(f"📄 STDOUT:\n{result.stdout}")
+                worker.log.emit(f"🐛 STDERR:\n{result.stderr}")
+                print("Error: ", result.stderr)
+                continue  # tiếp tục file khác
+
+            worker.log.emit(f"✅ Đã xử lý: {Path(file_path).as_posix()} ➜ {Path(output_file).as_posix()}")
+            print("Result: ", result.stdout)
+
+            percent = int((idx + 1) / total * 100)
+            worker.progress.emit(percent)
+        return True
+    except Exception as e:
+        print('Exception: ', e)
+        worker.log.emit(f"Error: {e}")
+        return False
+
 def run_go_convert(worker, input_path, output_path, input_ext, output_ext):
     try:
         input_files = glob.glob(os.path.join(input_path, f"*{input_ext.lower()}"))
@@ -38,7 +80,6 @@ def run_go_convert(worker, input_path, output_path, input_ext, output_ext):
 
             percent = int((idx + 1) / total * 100)
             worker.progress.emit(percent)
-
         return True
     except Exception as e:
         print('Exception: ', e)
