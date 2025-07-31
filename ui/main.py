@@ -1,7 +1,7 @@
 # ui/main.py
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QTabWidget, QVBoxLayout,
-    QPushButton, QLabel, QFileDialog, QLineEdit, QGridLayout, QComboBox, QMessageBox, QProgressBar, QTextEdit
+    QPushButton, QLabel, QFileDialog, QLineEdit, QGridLayout, QComboBox, QMessageBox, QProgressBar, QTextEdit, QHBoxLayout
 )
 from helpers import run_go_convert
 from workers import BaseWorker
@@ -52,17 +52,40 @@ class ConvertTab(QWidget):
         layout.addWidget(self.convert_btn, 4, 0, 1, 3)
         
         self.progress_bar = QProgressBar()
-        self.log_text = QTextEdit()
-        self.log_text.setReadOnly(True)
-        self.stop_btn = QPushButton("🛑 Dừng")
+        self.stop_btn = QPushButton("🛑 Stop")
         self.stop_btn.clicked.connect(self.stop_worker)
 
-        layout.addWidget(self.progress_bar, 5, 0, 1, 3)
+        # Layout con chứa progress bar và stop button
+        progress_layout = QHBoxLayout()
+        progress_layout.addWidget(self.progress_bar, 4)  # 80%
+        progress_layout.addWidget(self.stop_btn, 1)       # 20%
+        layout.addLayout(progress_layout, 5, 0, 1, 3)
+
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
         layout.addWidget(self.log_text, 6, 0, 1, 3)
-        layout.addWidget(self.stop_btn, 7, 0, 1, 3)
 
 
+        self.input_format_combo.currentTextChanged.connect(self.update_output_format)
+        self.update_output_format()  # Initialize output formats based on default input format
         self.setLayout(layout)
+
+    def update_output_format(self):
+        video_formats = [".mp4", ".avi", ".mkv", ".mov", ".flv"]
+        audio_formats = [".mp3", ".aac", ".wav", ".flac", ".m4a"]
+
+        current_input = self.input_format_combo.currentText()
+
+        if current_input in video_formats:
+            formats = video_formats # if input is a video format
+        elif current_input in audio_formats:
+            formats = audio_formats # fallback to audio formats
+        else:
+            formats = video_formats + audio_formats # fallback to all formats
+
+        # Update output format combo box
+        self.output_format_combo.clear()
+        self.output_format_combo.addItems(formats)
 
     def input_browse_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "Select Input Folder")
