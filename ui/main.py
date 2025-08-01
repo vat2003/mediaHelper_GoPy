@@ -3,9 +3,159 @@ from PyQt6.QtWidgets import (
     QApplication, QWidget, QTabWidget, QVBoxLayout,
     QPushButton, QLabel, QFileDialog, QLineEdit, QGridLayout, QComboBox, QMessageBox, QProgressBar, QTextEdit, QHBoxLayout
 )
-from helpers import run_go_convert, run_go_loop
+from helpers import run_go_convert, run_go_loop, run_go_merge
 from workers import BaseWorker
 from functools import partial
+
+class MergeMediaTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.worker = None
+        layout = QGridLayout()
+
+        # Input Video/Image Folder
+        input_label = QLabel("🎬 Input Videos/Image Folder:")
+        self.video_image_input_path = QLineEdit()
+        video_image_input_browse_btn = QPushButton("Browse")
+        video_image_input_browse_btn.clicked.connect(self.video_image_input_browse_folder)
+        layout.addWidget(input_label, 0, 0)
+        layout.addWidget(self.video_image_input_path, 0, 1)
+        layout.addWidget(video_image_input_browse_btn, 0, 2)
+
+        # Input Audio Folder
+        audio_label = QLabel("🎵 Input Audio Folder:")
+        self.audio_input_path = QLineEdit()
+        audio_input_browse_btn = QPushButton("Browse")
+        audio_input_browse_btn.clicked.connect(self.audio_input_browse_folder)
+        layout.addWidget(audio_label, 1, 0)
+        layout.addWidget(self.audio_input_path, 1, 1)
+        layout.addWidget(audio_input_browse_btn, 1, 2)
+
+        # Output Folder
+        output_label = QLabel("📁 Output Folder:")
+        self.output_path = QLineEdit()
+        output_browse_btn = QPushButton("Browse")
+        output_browse_btn.clicked.connect(self.output_browse_folder)
+        layout.addWidget(output_label, 2, 0)
+        layout.addWidget(self.output_path, 2, 1)
+        layout.addWidget(output_browse_btn, 2, 2)
+
+        # Duration and Format
+        duration_label = QLabel("⏲️ Duration (sec) | 🎥 Format")
+        self.duration_value_input = QLineEdit()
+        self.duration_value_input.setPlaceholderText("Seconds")
+        self.duration_value_input.setText("0")  # Default = 0
+        layout.addWidget(duration_label, 3, 0)
+        layout.addWidget(self.duration_value_input, 3, 1)
+
+        self.format_combo = QComboBox()
+        self.format_combo.setEditable(False)
+        self.format_combo.addItems([".mp4", ".mov", ".mkv", ".avi"])
+        layout.addWidget(self.format_combo, 3, 2)
+
+        # Resolution and Bitrate (same row)
+        resolution_label = QLabel("📺 Resolution | 📊 Bitrate")
+        self.resolution_combo = QComboBox()
+        self.resolution_combo.addItems(["1920x1080", "2560x1440", "3840x2160", "1280x720"])
+        layout.addWidget(resolution_label, 4, 0)
+        layout.addWidget(self.resolution_combo, 4, 1)
+
+        self.bitrate_combo = QComboBox()
+        self.bitrate_combo.setEditable(True)
+        self.bitrate_combo.addItems(["1500k", "2000k", "4000k", "8000k"])
+        layout.addWidget(self.bitrate_combo, 4, 2)
+
+        # FPS and Mode (same row)
+        fps_label = QLabel("🎥 FPS | 🔁 Mode")
+        self.fps_combo = QComboBox()
+        self.fps_combo.setEditable(True)
+        self.fps_combo.addItems(["0", "24", "25", "29", "30", "60", "120", "240"])
+        layout.addWidget(fps_label, 5, 0)
+        layout.addWidget(self.fps_combo, 5, 1)
+
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["gpu", "cpu"])
+        layout.addWidget(self.mode_combo, 5, 2)
+
+        # Merge Button
+        self.convert_btn = QPushButton("🚀 Merge Now")
+        self.convert_btn.clicked.connect(self.mergeFile)
+        layout.addWidget(self.convert_btn, 6, 0, 1, 4)
+
+        # Progress and Stop Button
+        self.progress_bar = QProgressBar()
+        self.stop_btn = QPushButton("🛑 Stop")
+        self.stop_btn.clicked.connect(self.stop_worker)
+
+        progress_layout = QHBoxLayout()
+        progress_layout.addWidget(self.progress_bar, 4)
+        progress_layout.addWidget(self.stop_btn, 1)
+        layout.addLayout(progress_layout, 7, 0, 1, 4)
+
+        # Log Text
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
+        layout.addWidget(self.log_text, 8, 0, 1, 4)
+
+        self.setLayout(layout)
+
+    def video_image_input_browse_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Video/Image Folder")
+        if folder:
+            self.video_image_input_path.setText(folder)
+
+    def audio_input_browse_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Audio Folder")
+        if folder:
+            self.audio_input_path.setText(folder)
+
+    def output_browse_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Output Folder")
+        if folder:
+            self.output_path.setText(folder)
+
+    def mergeFile(self):
+        self.convert_btn.setEnabled(False)  # Vô hiệu hóa nút khi đang chạy
+        video_image_input_path = self.video_image_input_path.text()
+        audio_input_path = self.audio_input_path.text()
+        output_folder = self.output_path.text()
+        duration_value = self.duration_value_input.text()
+        mode = self.mode_combo.currentText()
+        
+        self.worker = BaseWorker(
+            partial(
+                    run_go_merge,
+                    input_video_image=video_image_input_path,
+                    input_audio=audio_input_path,
+                    output_path=output_folder,
+                    resolution=self.resolution_combo.currentText(),
+                    mode=mode,
+                    duration=duration_value,
+                    bitrate=self.bitrate_combo.currentText(),
+                    fps=self.fps_combo.currentText(),
+                )
+        )
+        self.worker.progress.connect(self.update_progress)
+        self.worker.log.connect(self.append_log)
+        self.worker.finished.connect(self.on_merge_finished)
+        self.worker.start()
+
+    def update_progress(self, value):
+        self.progress_bar.setValue(value)
+
+    def append_log(self, message):
+        self.log_text.append(message)
+
+    def on_merge_finished(self, success):
+        self.convert_btn.setEnabled(True)
+        if success:
+            QMessageBox.information(self, "Thành công", "Đã Merge xong!")
+        else:
+            QMessageBox.warning(self, "Dừng / Lỗi", "Merge đã bị dừng hoặc có lỗi.")
+
+    def stop_worker(self):
+        if self.worker and self.worker.isRunning():
+            self.worker.stop()
 
 class LoopTab(QWidget):
     def __init__(self):
@@ -266,6 +416,7 @@ class MainWindow(QWidget):
         self.tabs = QTabWidget()
         self.tabs.addTab(ConvertTab(), "Convert")
         self.tabs.addTab(LoopTab(), "Loop")
+        self.tabs.addTab(MergeMediaTab(), "Merge Media")
         self.tabs.addTab(TracklistTab(), "Tracklist")
         self.tabs.addTab(DownloadTab(), "Download")
 
