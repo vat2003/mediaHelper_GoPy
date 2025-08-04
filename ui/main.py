@@ -1,9 +1,12 @@
 # ui/main.py
+import os
+import subprocess
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QTabWidget, QVBoxLayout,
-    QPushButton, QLabel, QFileDialog, QLineEdit, QGridLayout, QComboBox, QMessageBox, QProgressBar, QTextEdit, QHBoxLayout
+    QPushButton, QLabel, QFileDialog, QLineEdit, QGridLayout, QComboBox, QMessageBox, QProgressBar, QTextEdit, QHBoxLayout, QSpinBox, QWidget, QGridLayout
 )
-from helpers import run_go_convert, run_go_loop, run_go_merge
+import pyperclip
+from helpers import run_go_convert, run_go_loop, run_go_merge, run_go_random_merge
 from workers import BaseWorker
 from functools import partial
 
@@ -156,6 +159,116 @@ class MergeMediaTab(QWidget):
     def stop_worker(self):
         if self.worker and self.worker.isRunning():
             self.worker.stop()
+
+class MergeRandomTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.worker = None
+        layout = QGridLayout()
+
+        # Input Folder
+        layout.addWidget(QLabel("🎬 Input Folder:"), 0, 0)
+        self.input_path = QLineEdit()
+        layout.addWidget(self.input_path, 0, 1)
+        input_browse_btn = QPushButton("Browse")
+        input_browse_btn.clicked.connect(self.input_browse_folder)
+        layout.addWidget(input_browse_btn, 0, 2)
+
+        # Output Folder
+        layout.addWidget(QLabel("📁 Output Folder:"), 1, 0)
+        self.output_path = QLineEdit()
+        layout.addWidget(self.output_path, 1, 1)
+        output_browse_btn = QPushButton("Browse")
+        output_browse_btn.clicked.connect(self.output_browse_folder)
+        layout.addWidget(output_browse_btn, 1, 2)
+
+        # Input Count
+        layout.addWidget(QLabel("📄 Input File Count:"), 2, 0)
+        self.input_count_input = QSpinBox()
+        self.input_count_input.setMinimum(0)
+        layout.addWidget(self.input_count_input, 2, 1, 1, 2)
+
+        # Output Count
+        layout.addWidget(QLabel("📄 Output File Count:"), 3, 0)
+        self.output_count_input = QSpinBox()
+        self.output_count_input.setMinimum(1)
+        layout.addWidget(self.output_count_input, 3, 1, 1, 2)
+
+        # Merge button
+        self.convert_btn = QPushButton("🚀 Merge now")
+        self.convert_btn.clicked.connect(self.merge_random_folder)
+        layout.addWidget(self.convert_btn, 4, 0, 1, 3)
+
+        # Progress and Stop
+        self.progress_bar = QProgressBar()
+        self.stop_btn = QPushButton("🛑 Stop")
+        self.stop_btn.clicked.connect(self.stop_worker)
+        progress_layout = QHBoxLayout()
+        progress_layout.addWidget(self.progress_bar, 4)
+        progress_layout.addWidget(self.stop_btn, 1)
+        layout.addLayout(progress_layout, 5, 0, 1, 3)
+
+        # Log output
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
+        layout.addWidget(self.log_text, 6, 0, 1, 3)
+
+        self.setLayout(layout)
+
+    def input_browse_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Input Folder")
+        if folder:
+            self.input_path.setText(folder)
+
+    def output_browse_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Output Folder")
+        if folder:
+            self.output_path.setText(folder)
+
+    def merge_random_folder(self):
+        input_folder = self.input_path.text().strip()
+        output_folder = self.output_path.text().strip()
+        input_count = self.input_count_input.value()
+        output_count = self.output_count_input.value()
+
+        if not os.path.isdir(input_folder) or not os.path.isdir(output_folder):
+            QMessageBox.warning(self, "Lỗi", "Hãy chọn thư mục hợp lệ.")
+            return
+
+        self.convert_btn.setEnabled(False)
+        self.progress_bar.setValue(0)
+        self.log_text.clear()
+
+        self.worker = self.worker = BaseWorker(
+            partial(run_go_random_merge, 
+                    input_path=input_folder, 
+                    output_path=output_folder,
+                    files_per_group=str(input_count),
+                    num_outputs=str(output_count)
+                )
+        )
+        self.worker.progress.connect(self.update_progress)
+        self.worker.log.connect(self.append_log)
+        self.worker.finished.connect(self.on_convert_finished)
+        self.worker.start()
+
+    def stop_worker(self):
+        if self.worker and self.worker.isRunning():
+            self.worker.stop()
+
+    def update_progress(self, value):
+        self.progress_bar.setValue(value)
+
+    def append_log(self, message):
+        self.log_text.append(message)
+
+    def on_convert_finished(self, success):
+        self.convert_btn.setEnabled(True)
+        if success:
+            QMessageBox.information(self, "✅ Thành công", "Đã merge xong!")
+        else:
+            QMessageBox.warning(self, "⚠️ Dừng / Lỗi", "Merge đã bị dừng hoặc xảy ra lỗi.")
+
 
 class LoopTab(QWidget):
     def __init__(self):
@@ -394,11 +507,111 @@ class ConvertTab(QWidget):
 class TracklistTab(QWidget):
     def __init__(self):
         super().__init__()
-        layout = QVBoxLayout()
-        layout.addWidget(QLabel("👉 Đây là tab tạo Tracklist"))
+        layout = QGridLayout()
+        
+        # Input
+        input_label = QLabel("📜 Input Tracklist (mỗi dòng là 1 file):")
+        self.input_text = QTextEdit()
+        self.input_text.setPlaceholderText("Nhập đường dẫn các file (mỗi dòng 1 file) / Ctrl + Shift + C để copy đuờng dẫn từ file explorer")
+
+        input_button_layout = QHBoxLayout()
+        copy_input_btn = QPushButton("📋 Copy Input")
+        copy_input_btn.clicked.connect(self.copy_input)
+        input_button_layout.addWidget(copy_input_btn)
+
+        layout.addWidget(input_label, 0, 0)
+        layout.addWidget(self.input_text, 1, 0)
+        layout.addLayout(input_button_layout, 2, 0)
+
+        # Output
+        output_label = QLabel("📄 Tracklist Output:")
+        self.output_text = QTextEdit()
+        self.output_text.setReadOnly(True)
+
+        output_button_layout = QHBoxLayout()
+        copy_output_btn = QPushButton("📋 Copy")
+        copy_output_btn.clicked.connect(self.copy_output)
+        export_output_btn = QPushButton("💾 Export .txt")
+        export_output_btn.clicked.connect(self.export_output)
+        output_button_layout.addWidget(copy_output_btn)
+        output_button_layout.addWidget(export_output_btn)
+
+        layout.addWidget(output_label, 0, 1)
+        layout.addWidget(self.output_text, 1, 1)
+        layout.addLayout(output_button_layout, 2, 1)
+
+        # Generate
+        self.generate_btn = QPushButton("🚀 Generate Tracklist (HH:MM:SS)")
+        self.generate_btn.clicked.connect(self.generate_tracklist)
+        layout.addWidget(self.generate_btn, 3, 0, 1, 2)
+
         self.setLayout(layout)
 
+    def copy_input(self):
+        text = self.input_text.toPlainText()
+        pyperclip.copy(text)
 
+    def copy_output(self):
+        text = self.output_text.toPlainText()
+        pyperclip.copy(text)
+    
+    def export_output(self):
+        file_path, _ = QFileDialog.getSaveFileName(self, "Lưu file tracklist", "", "Text Files (*.txt)")
+        if file_path:
+            try:
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(self.output_text.toPlainText())
+                QMessageBox.information(self, "Thành công", "Đã lưu file tracklist!")
+            except Exception as e:
+                QMessageBox.warning(self, "Lỗi", f"Không thể lưu file: {e}")
+    
+    def generate_tracklist(self):
+        raw_text = self.input_text.toPlainText()
+        paths = [line.strip().strip('"') for line in raw_text.splitlines() if line.strip()]
+        if not paths:
+            QMessageBox.warning(self, "Thiếu dữ liệu", "Vui lòng nhập ít nhất 1 đường dẫn.")
+            return
+
+        try:
+            tracklist = self.build_tracklist(paths)
+            self.output_text.setPlainText(tracklist)
+        except Exception as e:
+            QMessageBox.critical(self, "Lỗi", f"Lỗi khi tạo tracklist:\n{e}")
+
+    def build_tracklist(self, paths):
+        lines = []
+        current_time = 0.0
+
+        for path in paths:
+            duration = self.get_duration(path)
+            start_time = self.seconds_to_hhmmss(current_time)
+            filename = os.path.basename(path)
+            name, _ = os.path.splitext(filename)
+            line = f"{start_time} {name}"
+            lines.append(line)
+            current_time += duration
+
+        return "\n".join(lines)
+
+    def get_duration(self, path):
+        try:
+            # Use ffprobe to get duration in seconds
+            result = subprocess.run(
+                ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            return float(result.stdout.strip())
+        except Exception as e:
+            raise RuntimeError(f"Lỗi đọc thời lượng file: {path}\n{e}")
+
+    def seconds_to_hhmmss(self, seconds):
+        h = int(seconds // 3600)
+        m = int((seconds % 3600) // 60)
+        s = int(seconds % 60)
+        return f"{h:02d}:{m:02d}:{s:02d}"
+    
 class DownloadTab(QWidget):
     def __init__(self):
         super().__init__()
@@ -417,8 +630,8 @@ class MainWindow(QWidget):
         self.tabs.addTab(ConvertTab(), "Convert")
         self.tabs.addTab(LoopTab(), "Loop")
         self.tabs.addTab(MergeMediaTab(), "Merge Media")
+        self.tabs.addTab(MergeRandomTab(), "Merge Random")
         self.tabs.addTab(TracklistTab(), "Tracklist")
-        self.tabs.addTab(DownloadTab(), "Download")
 
         layout = QVBoxLayout()
         layout.addWidget(self.tabs)
