@@ -2,13 +2,15 @@ import subprocess
 import os
 import glob
 import random
+import sys
 from pathlib import Path
 
 def get_duration_ffmpeg(file_path):
     try:
+        ffprobe_path = resource_path("assets/bin/ffprobe.exe")  # Đảm bảo ffprobe đã được cài đặt và có trong PATH
         result = subprocess.run(
             [
-                'ffprobe', '-v', 'error',
+                ffprobe_path, '-v', 'error',
                 '-show_entries', 'format=duration',
                 '-of', 'default=noprint_wrappers=1:nokey=1',
                 file_path
@@ -21,6 +23,13 @@ def get_duration_ffmpeg(file_path):
     except Exception as e:
         print(f"Lỗi lấy thời lượng với FFmpeg cho file: {file_path}\n{e}")
         return 0.0
+
+def resource_path(relative_path):
+    """Lấy đường dẫn tới file khi chạy .exe"""
+    meipass = getattr(sys, '_MEIPASS', None)
+    if meipass is not None:
+        return os.path.join(meipass, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
 
 def seconds_to_hhmmss(seconds):
     h = int(seconds // 3600)
@@ -44,6 +53,52 @@ def run_go_tracklist(input_text, output_tracklist_path="tracklist.txt"):
 
     return '\n'.join(lines)
 
+def run_go_extract_audio(worker, input_folder, output_folder, output_ext=".mp3"):
+    try:
+        worker.log.emit("🔄 Bắt đầu trích xuất audio...")
+        input_exts = ('.mp4', '.mkv', '.avi', '.mov', '.flv')
+        input_files = [f for f in glob.glob(os.path.join(input_folder, "*")) if f.lower().endswith(input_exts)]
+        total = len(input_files)
+
+        if total == 0:
+            worker.log.emit("⚠ Không tìm thấy file video nào để trích xuất audio.")
+            return False
+    
+        exe_path = os.path.abspath("../go_modules/extractAudio/go_extractAudio.exe")
+
+        for idx, file_path in enumerate(input_files):
+            if worker.is_stopped():
+                worker.log.emit("🛑 Đã dừng extract audio theo yêu cầu.")
+                return False
+            filename = Path(file_path).stem
+            output_file = os.path.join(output_folder, f"{filename}{output_ext}")
+
+            worker.log.emit(f"🎧 Đang xử lý: {Path(file_path).name}")
+
+            cmd = [exe_path, file_path, output_file]
+
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
+
+            if result.returncode != 0:
+                if "Stream specifier 'a'" in result.stderr or "Stream map 'a'" in result.stderr:
+                    worker.log.emit(f"⚠ Không có audio: {Path(file_path).name} → Bỏ qua.")
+                else:
+                    worker.log.emit(f"❌ Lỗi extract: {Path(file_path).name}")
+                    worker.log.emit(f"📄 STDOUT:\n{result.stdout}")
+                    worker.log.emit(f"🐛 STDERR:\n{result.stderr}")
+                continue
+
+            worker.log.emit(f"✅ Extract thành công: {Path(output_file).name}")
+
+            percent = int((idx + 1) / total * 100)
+            worker.progress.emit(percent)
+        worker.log.emit("🎉 Hoàn tất extract audio.")
+        return True
+    except Exception as e:
+        print('Exception:', e)
+        worker.log.emit(f"Error: {e}")
+        return False
+
 def run_go_random_merge(worker, input_path, output_path, files_per_group="0", num_outputs="1"):
     try:
         # Lấy danh sách file đầu vào để đếm số lượng
@@ -59,7 +114,7 @@ def run_go_random_merge(worker, input_path, output_path, files_per_group="0", nu
             return False
 
         # Đường dẫn đến file Go đã biên dịch hoặc file .go
-        exe_path = os.path.abspath("../go_modules/randomMerge/randomMerge.go")
+        exe_path = os.path.abspath("../go_modules/randomMerge/go_randomMerge.exe")
 
         for i in range(total):
             if worker.is_stopped():
@@ -119,7 +174,7 @@ def run_go_merge(worker, input_video_image, input_audio, output_path, resolution
             return False
         
         # Đường dẫn tới file thư thi go_mergeMedia
-        exe_path = os.path.abspath("../go_modules/mergeMedia/go_mergeMedia")
+        exe_path = os.path.abspath("../go_modules/mergeMedia/go_mergeMedia.exe")
 
         for idx, file_path in enumerate(input_files):
             if worker.is_stopped():
@@ -179,7 +234,7 @@ def run_go_loop(worker, input_path, output_path, loop_value="1", mode="default")
             worker.log.emit("⚠ Không tìm thấy file cần loop.")
             return False
         
-        exe_path = os.path.abspath("../go_modules/loop/go_loop")
+        exe_path = os.path.abspath("../go_modules/loop/go_loop.exe")
 
         for idx, file_path in enumerate(input_files):
             if worker.is_stopped():
@@ -221,7 +276,7 @@ def run_go_convert(worker, input_path, output_path, input_ext, output_ext):
             worker.log.emit("⚠ Không tìm thấy file cần convert.")
             return False
 
-        exe_path = os.path.abspath("../go_modules/convert/go_convert")
+        exe_path = os.path.abspath("../go_modules/convert/go_convert.exe")
 
         for idx, file_path in enumerate(input_files):
             if worker.is_stopped():

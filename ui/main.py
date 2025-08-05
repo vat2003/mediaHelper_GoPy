@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QFileDialog, QLineEdit, QGridLayout, QComboBox, QMessageBox, QProgressBar, QTextEdit, QHBoxLayout, QSpinBox, QWidget, QGridLayout
 )
 import pyperclip
-from helpers import run_go_convert, run_go_loop, run_go_merge, run_go_random_merge
+from helpers import run_go_convert, run_go_loop, run_go_merge, run_go_random_merge, run_go_extract_audio
 from workers import BaseWorker
 from functools import partial
 
@@ -611,7 +611,103 @@ class TracklistTab(QWidget):
         m = int((seconds % 3600) // 60)
         s = int(seconds % 60)
         return f"{h:02d}:{m:02d}:{s:02d}"
-    
+
+class ExtractAudioTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.worker = None  # Khởi tạo worker là None
+        layout = QGridLayout()
+
+        # Input Folder
+        input_label = QLabel("🎬 Input Folder:")
+        self.input_path = QLineEdit()
+        input_browse_btn = QPushButton("Browse")
+        input_browse_btn.clicked.connect(self.input_browse_folder)
+
+        layout.addWidget(input_label, 0, 0)
+        layout.addWidget(self.input_path, 0, 1)
+        layout.addWidget(input_browse_btn, 0, 2)
+
+        # Output Folder
+        output_label = QLabel("📁 Output Folder:")
+        self.output_path = QLineEdit()
+        output_browse_btn = QPushButton("Browse")
+        output_browse_btn.clicked.connect(self.output_browse_folder)
+
+        layout.addWidget(output_label, 2, 0)
+        layout.addWidget(self.output_path, 2, 1)
+        layout.addWidget(output_browse_btn, 2, 2)
+
+        # Output Format ComboBox
+        output_format_label = QLabel("🎯 Output Format:")
+        self.output_format_combo = QComboBox()
+        self.output_format_combo.addItems([".mp3", ".aac", ".wav", ".flac", ".m4a"])
+        layout.addWidget(output_format_label, 3, 0)
+        layout.addWidget(self.output_format_combo, 3, 1, 1, 2)
+
+        # Convert button
+        self.convert_btn = QPushButton("🚀 Extract Now")
+        self.convert_btn.clicked.connect(self.convert_file)
+        layout.addWidget(self.convert_btn, 4, 0, 1, 3)
+        
+        self.progress_bar = QProgressBar()
+        self.stop_btn = QPushButton("🛑 Stop")
+        self.stop_btn.clicked.connect(self.stop_worker)
+
+        # Layout con chứa progress bar và stop button
+        progress_layout = QHBoxLayout()
+        progress_layout.addWidget(self.progress_bar, 4)  # 80%
+        progress_layout.addWidget(self.stop_btn, 1)       # 20%
+        layout.addLayout(progress_layout, 5, 0, 1, 3)
+
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
+        layout.addWidget(self.log_text, 6, 0, 1, 3)
+
+        self.setLayout(layout)
+
+
+    def input_browse_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Input Folder")
+        if folder:
+            self.input_path.setText(folder)
+
+    def output_browse_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Output Folder")
+        if folder:
+            self.output_path.setText(folder)
+
+    def convert_file(self):
+        self.convert_btn.setEnabled(False)  # Vô hiệu hóa nút khi đang chạy
+        input_folder = self.input_path.text()
+        output_folder = self.output_path.text()
+        output_ext = self.output_format_combo.currentText()
+        
+        self.worker = BaseWorker(
+            partial(run_go_extract_audio, input_folder=input_folder, output_folder=output_folder, output_ext=output_ext)
+        )
+        self.worker.progress.connect(self.update_progress)
+        self.worker.log.connect(self.append_log)
+        self.worker.finished.connect(self.on_convert_finished)
+        self.worker.start()
+
+    def update_progress(self, value):
+        self.progress_bar.setValue(value)
+
+    def append_log(self, message):
+        self.log_text.append(message)
+
+    def on_convert_finished(self, success):
+        self.convert_btn.setEnabled(True)
+        if success:
+            QMessageBox.information(self, "Thành công", "Đã extract xong!")
+        else:
+            QMessageBox.warning(self, "Dừng / Lỗi", "extract đã bị dừng hoặc có lỗi.")
+
+    def stop_worker(self):
+        if self.worker and self.worker.isRunning():
+            self.worker.stop()
+     
 class DownloadTab(QWidget):
     def __init__(self):
         super().__init__()
@@ -627,8 +723,9 @@ class MainWindow(QWidget):
         # self.resize(600, 400)
 
         self.tabs = QTabWidget()
-        self.tabs.addTab(ConvertTab(), "Convert")
         self.tabs.addTab(LoopTab(), "Loop")
+        self.tabs.addTab(ConvertTab(), "Convert")
+        self.tabs.addTab(ExtractAudioTab(), "Extract Audio")
         self.tabs.addTab(MergeMediaTab(), "Merge Media")
         self.tabs.addTab(MergeRandomTab(), "Merge Random")
         self.tabs.addTab(TracklistTab(), "Tracklist")

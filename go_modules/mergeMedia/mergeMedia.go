@@ -10,8 +10,29 @@ import (
 	"strings"
 )
 
+func getFFmpegPath() string {
+	execPath, err := os.Executable()
+	if err != nil {
+		fmt.Println("❌ Không tìm được đường dẫn thực thi:", err)
+		os.Exit(1)
+	}
+	execDir := filepath.Dir(execPath)
+	ffmpegPath := filepath.Join(execDir, "assets/bin", "ffmpeg.exe")
+	return ffmpegPath
+}
+func getFFprobePath() string {
+	execPath, err := os.Executable()
+	if err != nil {
+		fmt.Println("❌ Không tìm được đường dẫn thực thi:", err)
+		os.Exit(1)
+	}
+	execDir := filepath.Dir(execPath)
+	ffprobePath := filepath.Join(execDir, "assets/bin", "ffprobe.exe")
+	return ffprobePath
+}
 func getDuration(input string) (float64, error) {
-	cmd := exec.Command("ffprobe", "-v", "error", "-show_entries", "format=duration",
+	ffprobe := getFFprobePath()
+	cmd := exec.Command(ffprobe, "-v", "error", "-show_entries", "format=duration",
 		"-of", "default=noprint_wrappers=1:nokey=1", input)
 	output, err := cmd.Output()
 	if err != nil {
@@ -20,7 +41,6 @@ func getDuration(input string) (float64, error) {
 	durationStr := strings.TrimSpace(string(output))
 	return strconv.ParseFloat(durationStr, 64)
 }
-
 func main() {
 	if len(os.Args) < 7 {
 		fmt.Println("Usage: go run mergeMedia.go <input_video_or_image> <input_audio> <output_file> <resolution> <cpu|gpu> <output_duration_seconds> [bitrate] [fps (0 = default)]")
@@ -33,6 +53,7 @@ func main() {
 	resolution := os.Args[4]
 	processor := os.Args[5]
 	outputDurationStr := os.Args[6]
+	ffmpeg := getFFmpegPath()
 
 	// Lấy bitrate mặc định nếu không truyền
 	bitrate := "1500k"
@@ -126,7 +147,7 @@ func main() {
 		}
 	}
 
-	cmd := exec.Command("ffmpeg", append([]string{"-y"}, ffmpegArgs...)...)
+	cmd := exec.Command(ffmpeg, append([]string{"-y"}, ffmpegArgs...)...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

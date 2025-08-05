@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"go_modules/utils"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,6 +20,8 @@ func main() {
 	outputFile := os.Args[2]
 	loopParam := os.Args[3]
 	mode := os.Args[4] // "count" or "duration"
+	ffmpeg := utils.GetFFmpegPath()
+	ffprobe := utils.GetFFprobePath()
 
 	// Create temp concat list file
 	concatList := "concat_list.txt"
@@ -36,7 +39,7 @@ func main() {
 		}
 	case "duration":
 		// Lấy duration của file input bằng ffprobe
-		cmd := exec.Command("ffprobe", "-v", "error", "-show_entries", "format=duration",
+		cmd := exec.Command(ffprobe, "-v", "error", "-show_entries", "format=duration",
 			"-of", "default=noprint_wrappers=1:nokey=1", inputFile)
 		out, err := cmd.Output()
 		if err != nil {
@@ -82,7 +85,7 @@ func main() {
 	}
 
 	// Gọi ffmpeg để nối các file
-	cmd := exec.Command("ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concatList, "-c", "copy", outputFile)
+	cmd := exec.Command(ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", concatList, "-c", "copy", outputFile)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	fmt.Println("FFmpeg cmd:", strings.Join(cmd.Args, " "))

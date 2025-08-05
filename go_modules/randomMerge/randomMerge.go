@@ -16,6 +16,26 @@ var videoExts = []string{".mp4", ".avi", ".mkv", ".mov", ".flv"}
 var audioExts = []string{".mp3", ".wav", ".aac"}
 var mediaExts = append(videoExts, audioExts...)
 
+func getFFmpegPath() string {
+	execPath, err := os.Executable()
+	if err != nil {
+		fmt.Println("❌ Không tìm được đường dẫn thực thi:", err)
+		os.Exit(1)
+	}
+	execDir := filepath.Dir(execPath)
+	ffmpegPath := filepath.Join(execDir, "assets/bin", "ffmpeg.exe")
+	return ffmpegPath
+}
+func getFFprobePath() string {
+	execPath, err := os.Executable()
+	if err != nil {
+		fmt.Println("❌ Không tìm được đường dẫn thực thi:", err)
+		os.Exit(1)
+	}
+	execDir := filepath.Dir(execPath)
+	ffprobePath := filepath.Join(execDir, "assets/bin", "ffprobe.exe")
+	return ffprobePath
+}
 func isMedaFile(filename string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
 	for _, e := range mediaExts {
@@ -42,7 +62,8 @@ func getMediaFiles(folder string) ([]string, error) {
 }
 
 func getDuration(file string) float64 {
-	cmd := exec.Command("ffprobe", "-v", "error", "-show_entries", "format=duration",
+	ffprobe := getFFprobePath()
+	cmd := exec.Command(ffprobe, "-v", "error", "-show_entries", "format=duration",
 		"-of", "default=noprint_wrappers=1:nokey=1", file)
 	out, err := cmd.Output()
 	if err != nil {
@@ -156,8 +177,9 @@ func concatMedia(inputFolder, outputFolder string, filesPerGroup, numOutputs int
 			continue
 		}
 
+		ffmpeg := getFFmpegPath()
 		// Gọi ffmpeg
-		cmd := exec.Command("ffmpeg", "-hide_banner", "-fflags", "+genpts",
+		cmd := exec.Command(ffmpeg, "-hide_banner", "-fflags", "+genpts",
 			"-f", "concat", "-safe", "0", "-i", tempListPath,
 			"-c", "copy", "-y", outputPath)
 		cmd.Stdout = os.Stdout
