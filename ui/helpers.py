@@ -22,7 +22,6 @@ def get_duration_ffmpeg(file_path):
         )
         return float(result.stdout.strip())
     except Exception as e:
-        print(f"Lỗi lấy thời lượng với FFmpeg cho file: {file_path}\n{e}")
         return 0.0
 
 def resource_path(relative_path):
@@ -96,11 +95,9 @@ def run_go_videoScale(
                 worker.log.emit(f"❌ Lỗi scale: {Path(file_path).name}")
                 worker.log.emit(f"📄 STDOUT:\n{result.stdout}")
                 worker.log.emit(f"🐛 STDERR:\n{result.stderr}")
-                print("Error: ", result.stderr)
                 continue
 
             worker.log.emit(f"✅ Đã scale: {Path(file_path).name} ➜ {Path(output_file).name}")
-            print("Result: ", result.stdout)
 
             # Cập nhật tiến độ
             percent = int((idx + 1) / total * 100)
@@ -109,7 +106,6 @@ def run_go_videoScale(
         return True
 
     except Exception as e:
-        print("Exception:", e)
         worker.log.emit(f"❌ Exception: {e}")
         return False
 
@@ -172,7 +168,6 @@ def run_go_extract_audio(worker, input_folder, output_folder, output_ext=".mp3")
         worker.log.emit("🎉 Hoàn tất extract audio.")
         return True
     except Exception as e:
-        print('Exception:', e)
         worker.log.emit(f"Error: {e}")
         return False
 
@@ -216,11 +211,9 @@ def run_go_random_merge(worker, input_path, output_path, files_per_group="0", nu
                 worker.log.emit(f"❌ Lỗi randomMerge nhóm {i+1}:")
                 worker.log.emit(f"📄 STDOUT:\n{result.stdout}")
                 worker.log.emit(f"🐛 STDERR:\n{result.stderr}")
-                print("Error: ", result.stderr)
                 continue
 
             worker.log.emit(f"✅ Đã ghép nhóm {i+1}/{total}")
-            print("result:", result.stdout)
 
             percent = int((i + 1) / total * 100)
             worker.progress.emit(percent)
@@ -228,7 +221,6 @@ def run_go_random_merge(worker, input_path, output_path, files_per_group="0", nu
         return True
 
     except Exception as e:
-        print('Exception:', e)
         worker.log.emit(f"Error: {e}")
         return False
 
@@ -288,19 +280,16 @@ def run_go_merge(worker, input_video_image, input_audio, output_path, resolution
                 worker.log.emit(f"❌ Lỗi Merge: {Path(file_path).as_posix()}")
                 worker.log.emit(f"📄 STDOUT:\n{result.stdout}")
                 worker.log.emit(f"🐛 STDERR:\n{result.stderr}")
-                print("Error: ", result.stderr)
                 continue
 
             # Log thành công
             worker.log.emit(f"✅ Đã xử lý: {Path(file_path).name} ➜ {Path(output_file).name}")
-            print("Result: ", result.stdout)
 
             # Cập nhật tiến độ
             percent = int((idx + 1) / total * 100)
             worker.progress.emit(percent)
         return True
     except Exception as e:
-        print('Exception: ', e)
         worker.log.emit(f"Error: {e}")
         return False
 
@@ -333,17 +322,15 @@ def run_go_loop(worker, input_path, output_path, loop_value="1", mode="default")
                 worker.log.emit(f"❌ Lỗi Loop: {Path(file_path).as_posix()}")
                 worker.log.emit(f"📄 STDOUT:\n{result.stdout}")
                 worker.log.emit(f"🐛 STDERR:\n{result.stderr}")
-                print("Error: ", result.stderr)
                 continue  # tiếp tục file khác
 
             worker.log.emit(f"✅ Đã xử lý: {Path(file_path).as_posix()} ➜ {Path(output_file).as_posix()}")
-            print("Result: ", result.stdout)
+            
 
             percent = int((idx + 1) / total * 100)
             worker.progress.emit(percent)
         return True
     except Exception as e:
-        print('Exception: ', e)
         worker.log.emit(f"Error: {e}")
         return False
 
@@ -375,16 +362,13 @@ def run_go_convert(worker, input_path, output_path, input_ext, output_ext):
                 worker.log.emit(f"❌ Lỗi convert: {Path(file_path).as_posix()}")
                 worker.log.emit(f"📄 STDOUT:\n{result.stdout}")
                 worker.log.emit(f"🐛 STDERR:\n{result.stderr}")
-                print("Error: ", result.stderr)
                 continue  # tiếp tục file khác
 
             worker.log.emit(f"✅ {Path(file_path).as_posix()} ➜ {Path(output_file).as_posix()}")
-            print("result: ", result.stdout)
 
             percent = int((idx + 1) / total * 100)
             worker.progress.emit(percent)
         return True
     except Exception as e:
-        print('Exception: ', e)
         worker.log.emit(f"Error: {e}")
         return False
