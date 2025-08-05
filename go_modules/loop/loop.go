@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 func main() {
@@ -42,6 +43,8 @@ func main() {
 		cmd := exec.Command(ffprobe, "-v", "error", "-show_entries", "format=duration",
 			"-of", "default=noprint_wrappers=1:nokey=1", inputFile)
 		out, err := cmd.Output()
+		// Ẩn console window (chỉ có tác dụng trên Windows)
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 		if err != nil {
 			fmt.Println("Không thể lấy thời lượng file:", err)
 			return
@@ -88,6 +91,8 @@ func main() {
 	cmd := exec.Command(ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", concatList, "-c", "copy", outputFile)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	// Ẩn console window (chỉ có tác dụng trên Windows)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	fmt.Println("FFmpeg cmd:", strings.Join(cmd.Args, " "))
 
 	fmt.Println("🚀 Đang tạo file lặp...")

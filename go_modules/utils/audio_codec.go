@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"syscall"
 )
 
 // GetAudioCodec dùng ffprobe để lấy codec audio từ video
@@ -20,6 +21,9 @@ func GetAudioCodec(inputFile string, ffprobePath string) (string, error) {
 
 	var out bytes.Buffer
 	cmd.Stdout = &out
+	// Ẩn console window (chỉ có tác dụng trên Windows)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+
 	err := cmd.Run()
 	if err != nil {
 		return "", err

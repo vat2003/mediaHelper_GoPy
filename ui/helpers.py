@@ -18,7 +18,8 @@ def get_duration_ffmpeg(file_path):
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            text=True
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW
         )
         return float(result.stdout.strip())
     except Exception as e:

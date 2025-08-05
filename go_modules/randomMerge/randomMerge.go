@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -66,6 +67,8 @@ func getDuration(file string) float64 {
 	cmd := exec.Command(ffprobe, "-v", "error", "-show_entries", "format=duration",
 		"-of", "default=noprint_wrappers=1:nokey=1", file)
 	out, err := cmd.Output()
+	// Ẩn console window (chỉ có tác dụng trên Windows)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	if err != nil {
 		return 0
 	}
@@ -184,6 +187,8 @@ func concatMedia(inputFolder, outputFolder string, filesPerGroup, numOutputs int
 			"-c", "copy", "-y", outputPath)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
+		// Ẩn console window (chỉ có tác dụng trên Windows)
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 
 		fmt.Println("🚀 Đang xử lý:", outputPath)
 		err = cmd.Run()

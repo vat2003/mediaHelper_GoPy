@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 
 	"go_modules/utils"
 )
@@ -43,7 +44,8 @@ func main() {
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-
+	// Ẩn console window (chỉ có tác dụng trên Windows)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	if err := cmd.Run(); err != nil {
 		fmt.Println("❌ Lỗi khi extract audio:", err)
 		os.Exit(3)

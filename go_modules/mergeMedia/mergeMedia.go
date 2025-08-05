@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 func getFFmpegPath() string {
@@ -150,6 +151,8 @@ func main() {
 	cmd := exec.Command(ffmpeg, append([]string{"-y"}, ffmpegArgs...)...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	// Ẩn console window (chỉ có tác dụng trên Windows)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 
 	fmt.Println("🚀 Ghép video/audio...")
 	fmt.Println("FFmpeg command:", strings.Join(cmd.Args, " "))

@@ -3,10 +3,10 @@ package main
 
 import (
 	"fmt"
+	"go_modules/utils"
 	"os"
 	"os/exec"
-
-	"go_modules/utils"
+	"syscall"
 )
 
 // Giữ nguyên import...
@@ -27,6 +27,8 @@ func main() {
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	// Ẩn console window (chỉ có tác dụng trên Windows)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 
 	if err := cmd.Run(); err != nil {
 		fmt.Println("❌ Lỗi Convert:", err)

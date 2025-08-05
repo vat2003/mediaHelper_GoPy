@@ -745,17 +745,20 @@ class TracklistTab(QWidget):
         return "\n".join(lines)
 
     def get_duration(self, path):
+        project_dir = os.getcwd()
+        ffprobe_path = os.path.join(project_dir, "assets", "ffmpeg", "ffprobe.exe")
         try:
             # Use ffprobe to get duration in seconds
             result = subprocess.run(
-                ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path],
+                [ffprobe_path, "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW
             )
             return float(result.stdout.strip())
         except Exception as e:
-            raise RuntimeError(f"Lỗi đọc thời lượng file: {path}\n{e}")
+            raise RuntimeError(f"Lỗi đọc thời lượng file: {path}\n{e}\n{ffprobe_path}")
 
     def seconds_to_hhmmss(self, seconds):
         h = int(seconds // 3600)

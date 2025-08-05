@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 func main() {
@@ -81,6 +82,8 @@ func main() {
 	cmd := exec.Command(ffmpeg, append([]string{"-y"}, ffmpegArgs...)...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	// Ẩn console window (chỉ có tác dụng trên Windows)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 
 	fmt.Println("🚀 Đang scale video...")
 	fmt.Println("FFmpeg command:", strings.Join(cmd.Args, " "))
