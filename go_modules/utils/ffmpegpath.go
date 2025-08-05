@@ -14,12 +14,11 @@ func getFFmpegBinDir() string {
 		os.Exit(1)
 	}
 
-	// Truy ngược lên thư mục gốc dự án (C:\GoProjects)
-	// Ví dụ: nếu execPath = C:\GoProjects\go_modules\loop\your_app.exe
-	// thì rootDir = C:\GoProjects
-	moduleDir := filepath.Dir(execPath)
-	goModulesDir := filepath.Dir(moduleDir)
-	projectRoot := filepath.Dir(goModulesDir)
+	// Truy ngược lên thư mục gốc dự án từ bin/
+	// Ví dụ: nếu execPath = C:\GoProjects\bin\extractAudio.exe
+	// thì projectRoot = C:\GoProjects
+	binDir := filepath.Dir(execPath)
+	projectRoot := filepath.Dir(binDir)
 
 	return filepath.Join(projectRoot, "assets", "ffmpeg")
 }

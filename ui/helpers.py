@@ -7,7 +7,8 @@ from pathlib import Path
 
 def get_duration_ffmpeg(file_path):
     try:
-        ffprobe_path = resource_path("assets/bin/ffprobe.exe")  # Đảm bảo ffprobe đã được cài đặt và có trong PATH
+        project_dir = os.getcwd()
+        ffprobe_path = os.path.join(project_dir, "assets", "ffmpeg", "ffprobe.exe")
         result = subprocess.run(
             [
                 ffprobe_path, '-v', 'error',
@@ -37,6 +38,81 @@ def seconds_to_hhmmss(seconds):
     s = int(seconds % 60)
     return f"{h:02}:{m:02}:{s:02}"
 
+def run_go_videoScale(
+    worker,
+    input_path,
+    output_path,
+    resolution="1920x1080",
+    video_bitrate="4000k",
+    audio_bitrate="192k",
+    fps="30",
+    preset="fast",
+    mode="gpu",
+    ext=".mp4"
+):
+    try:
+        # Lọc các file video đầu vào
+        video_exts = ('*.mp4', '*.mov', '*.avi', '*.mkv')
+        input_files = [f for ext in video_exts for f in glob.glob(os.path.join(input_path, ext))]
+
+        total = len(input_files)
+        if total == 0:
+            worker.log.emit("⚠ Không tìm thấy file video cần scale.")
+            return False
+
+        # Đường dẫn đến binary Go
+        project_dir = os.getcwd()
+        exe_path = os.path.join(project_dir, "bin", "go_videoScale.exe")
+
+        for idx, file_path in enumerate(input_files):
+            if worker.is_stopped():
+                worker.log.emit("🛑 Dừng scale theo yêu cầu.")
+                return False
+
+            # Tên file đầu ra
+            filename = Path(file_path).stem
+            output_file = os.path.join(output_path, f"{filename}_scaled{ext}")
+
+            # Log đang xử lý
+            worker.log.emit(f"📼 Scaling: {Path(file_path).name}")
+
+            # Gọi file thực thi go_videoScale với các tham số
+            cmd = [
+                exe_path,
+                file_path,
+                output_file,
+                resolution,
+                mode,
+                video_bitrate,
+                fps,
+                audio_bitrate,
+                preset
+            ]
+
+            # Gọi subprocess
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
+
+            if result.returncode != 0:
+                worker.log.emit(f"❌ Lỗi scale: {Path(file_path).name}")
+                worker.log.emit(f"📄 STDOUT:\n{result.stdout}")
+                worker.log.emit(f"🐛 STDERR:\n{result.stderr}")
+                print("Error: ", result.stderr)
+                continue
+
+            worker.log.emit(f"✅ Đã scale: {Path(file_path).name} ➜ {Path(output_file).name}")
+            print("Result: ", result.stdout)
+
+            # Cập nhật tiến độ
+            percent = int((idx + 1) / total * 100)
+            worker.progress.emit(percent)
+
+        return True
+
+    except Exception as e:
+        print("Exception:", e)
+        worker.log.emit(f"❌ Exception: {e}")
+        return False
+
 def run_go_tracklist(input_text, output_tracklist_path="tracklist.txt"):
     paths = [line.strip().strip('"') for line in input_text.strip().splitlines() if line.strip()]
     current_time = 0.0
@@ -64,7 +140,8 @@ def run_go_extract_audio(worker, input_folder, output_folder, output_ext=".mp3")
             worker.log.emit("⚠ Không tìm thấy file video nào để trích xuất audio.")
             return False
     
-        exe_path = os.path.abspath("../go_modules/extractAudio/go_extractAudio.exe")
+        project_dir = os.getcwd()
+        exe_path = os.path.join(project_dir, "bin", "go_extractAudio.exe")
 
         for idx, file_path in enumerate(input_files):
             if worker.is_stopped():
@@ -114,7 +191,8 @@ def run_go_random_merge(worker, input_path, output_path, files_per_group="0", nu
             return False
 
         # Đường dẫn đến file Go đã biên dịch hoặc file .go
-        exe_path = os.path.abspath("../go_modules/randomMerge/go_randomMerge.exe")
+        project_dir = os.getcwd()
+        exe_path = os.path.join(project_dir, "bin", "go_randomMerge.exe")
 
         for i in range(total):
             if worker.is_stopped():
@@ -174,7 +252,8 @@ def run_go_merge(worker, input_video_image, input_audio, output_path, resolution
             return False
         
         # Đường dẫn tới file thư thi go_mergeMedia
-        exe_path = os.path.abspath("../go_modules/mergeMedia/go_mergeMedia.exe")
+        project_dir = os.getcwd()
+        exe_path = os.path.join(project_dir, "bin", "go_mergeMedia.exe")
 
         for idx, file_path in enumerate(input_files):
             if worker.is_stopped():
@@ -234,7 +313,8 @@ def run_go_loop(worker, input_path, output_path, loop_value="1", mode="default")
             worker.log.emit("⚠ Không tìm thấy file cần loop.")
             return False
         
-        exe_path = os.path.abspath("../go_modules/loop/go_loop.exe")
+        project_dir = os.getcwd()
+        exe_path = os.path.join(project_dir, "bin", "go_loop.exe")
 
         for idx, file_path in enumerate(input_files):
             if worker.is_stopped():
@@ -276,7 +356,8 @@ def run_go_convert(worker, input_path, output_path, input_ext, output_ext):
             worker.log.emit("⚠ Không tìm thấy file cần convert.")
             return False
 
-        exe_path = os.path.abspath("../go_modules/convert/go_convert.exe")
+        project_dir = os.getcwd()
+        exe_path = os.path.join(project_dir, "bin", "go_convert.exe")
 
         for idx, file_path in enumerate(input_files):
             if worker.is_stopped():
