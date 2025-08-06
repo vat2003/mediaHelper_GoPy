@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
     QApplication, QWidget, QTabWidget, QVBoxLayout,
     QPushButton, QLabel, QFileDialog, QLineEdit, QGridLayout, QComboBox, QMessageBox, QProgressBar, QTextEdit, QHBoxLayout, QSpinBox, QWidget, QGridLayout
 )
+from PyQt6.QtGui import QIcon
 import pyperclip
 from ui.helpers import run_go_convert, run_go_loop, run_go_merge, run_go_random_merge, run_go_extract_audio, run_go_videoScale
 from ui.workers import BaseWorker
@@ -861,20 +862,13 @@ class ExtractAudioTab(QWidget):
     def stop_worker(self):
         if self.worker and self.worker.isRunning():
             self.worker.stop()
-     
-class DownloadTab(QWidget):
-    def __init__(self):
-        super().__init__()
-        layout = QVBoxLayout()
-        layout.addWidget(QLabel("📥 Đây là tab Download (sử dụng gdown)"))
-        self.setLayout(layout)
-
 
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("🎧 MediaHelper")
         self.resize(700, 400)
+        self.setWindowTitle("Media Tools")
+        self.setWindowIcon(QIcon("assets/icon.ico"))
 
         self.tabs = QTabWidget()
         self.tabs.addTab(LoopTab(), "Loop")

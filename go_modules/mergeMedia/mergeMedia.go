@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"go_modules/utils"
 	"log"
 	"os"
 	"os/exec"
@@ -11,28 +12,8 @@ import (
 	"syscall"
 )
 
-func getFFmpegPath() string {
-	execPath, err := os.Executable()
-	if err != nil {
-		fmt.Println("❌ Không tìm được đường dẫn thực thi:", err)
-		os.Exit(1)
-	}
-	execDir := filepath.Dir(execPath)
-	ffmpegPath := filepath.Join(execDir, "assets/bin", "ffmpeg.exe")
-	return ffmpegPath
-}
-func getFFprobePath() string {
-	execPath, err := os.Executable()
-	if err != nil {
-		fmt.Println("❌ Không tìm được đường dẫn thực thi:", err)
-		os.Exit(1)
-	}
-	execDir := filepath.Dir(execPath)
-	ffprobePath := filepath.Join(execDir, "assets/bin", "ffprobe.exe")
-	return ffprobePath
-}
 func getDuration(input string) (float64, error) {
-	ffprobe := getFFprobePath()
+	ffprobe := utils.GetFFprobePath()
 	cmd := exec.Command(ffprobe, "-v", "error", "-show_entries", "format=duration",
 		"-of", "default=noprint_wrappers=1:nokey=1", input)
 	output, err := cmd.Output()
@@ -54,7 +35,7 @@ func main() {
 	resolution := os.Args[4]
 	processor := os.Args[5]
 	outputDurationStr := os.Args[6]
-	ffmpeg := getFFmpegPath()
+	ffmpeg := utils.GetFFmpegPath()
 
 	// Lấy bitrate mặc định nếu không truyền
 	bitrate := "1500k"

@@ -199,7 +199,7 @@ def run_go_random_merge(worker, input_path, output_path, files_per_group="0", nu
             
             # Gọi lệnh: go run randomMerge.go <input_path> <output_path> <files_per_group> <num_outputs>
             cmd = [
-                "go", "run", exe_path,
+                exe_path,
                 input_path,
                 output_path,
                 str(files_per_group),
