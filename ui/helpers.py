@@ -293,47 +293,121 @@ def run_go_merge(worker, input_video_image, input_audio, output_path, resolution
         worker.log.emit(f"Error: {e}")
         return False
 
+MEDIA_EXTS = {'.mp4', '.mkv', '.mov', '.avi', '.flv', '.mp3', '.wav', '.aac'}
+
 def run_go_loop(worker, input_path, output_path, loop_value="1", mode="default"):
     try:
-        input_files = glob.glob(os.path.join(input_path, "*"))
-        total = len(input_files)
+        p = Path(input_path)
 
-        if total == 0:
-            worker.log.emit("⚠ Không tìm thấy file cần loop.")
+        # Tạo danh sách file media (nếu input là thư mục)
+        if p.is_file():
+            input_files = [str(p)]
+        elif p.is_dir():
+            # Non-recursive. Nếu muốn recursive -> use rglob instead of iterdir
+            input_files = [str(x) for x in sorted(p.iterdir()) if x.is_file() and x.suffix.lower() in MEDIA_EXTS]
+        else:
+            worker.log.emit(f"❌ Input không tồn tại: {input_path}")
             return False
-        
+
+        total = len(input_files)
+        if total == 0:
+            worker.log.emit("⚠ Không tìm thấy file media trong thư mục.")
+            return False
+
+        # đảm bảo output folder tồn tại
+        os.makedirs(output_path, exist_ok=True)
+
         project_dir = os.getcwd()
         exe_path = os.path.join(project_dir, "bin", "go_loop.exe")
+        if not os.path.exists(exe_path):
+            worker.log.emit(f"❌ Không tìm thấy executable: {exe_path}")
+            return False
 
         for idx, file_path in enumerate(input_files):
             if worker.is_stopped():
                 worker.log.emit("🛑 Dừng loop theo yêu cầu.")
                 return False
-            
-            filename = Path(file_path).stem
-            ext = Path(file_path).suffix
-            output_file = os.path.join(output_path, f"{filename}_looped{ext}")
 
-            cmd = [exe_path, file_path, output_file, loop_value, mode]
-            
-            result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
+            worker.log.emit(f"🔄 Đang xử lý: {Path(file_path).name}")
 
-            if result.returncode != 0:
-                worker.log.emit(f"❌ Lỗi Loop: {Path(file_path).as_posix()}")
-                worker.log.emit(f"📄 STDOUT:\n{result.stdout}")
-                worker.log.emit(f"🐛 STDERR:\n{result.stderr}")
-                continue  # tiếp tục file khác
+            pfile = Path(file_path)
+            if not pfile.is_file():
+                worker.log.emit(f"⚠ Bỏ qua (không phải file): {file_path}")
+                continue
 
+            ext = pfile.suffix or ".mp4"
+            output_file = os.path.join(output_path, f"{pfile.stem}_looped{ext}")
+
+            cmd = [exe_path, str(file_path), str(output_file), str(loop_value), str(mode)]
+
+            # khởi chạy process, gộp stderr vào stdout để tránh deadlock
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding='utf-8'
+            )
+            worker.current_process = process
+
+            has_error = False
+
+            # Đọc line-by-line realtime
+            if process.stdout is not None:
+                for raw in process.stdout:
+                    line = raw.rstrip()
+                    if not line:
+                        continue
+
+                    # stop ngay lập tức
+                    if worker.is_stopped():
+                        worker.log.emit("🛑 Dừng tiến trình hiện tại...")
+                        try:
+                            process.terminate()
+                        except Exception:
+                            pass
+                        process.wait()
+                        return False
+
+                    # phân loại log theo tiền tố do Go in ra: ERROR:, WARN:, INFO:
+                    if line.startswith("ERROR:"):
+                        has_error = True
+                        worker.log.emit(f"❌ Lỗi Loop: {Path(file_path).name}")
+                        worker.log.emit(f"🐛 GO Output: {line}")
+                    elif line.startswith("WARN:"):
+                        worker.log.emit(f"⚠ {line[5:].strip()}")
+                    elif line.startswith("INFO:"):
+                        # cắt "INFO:" trước khi hiển thị
+                        worker.log.emit(line[5:].strip())
+                    else:
+                        # hiển thị mọi dòng khác (ffmpeg log, v.v.)
+                        worker.log.emit(line)
+
+            # đợi process kết thúc (nếu chưa)
+            retcode = process.wait()
+
+            # Nếu process trả non-zero, kiểm tra file output
+            if retcode != 0:
+                if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
+                    worker.log.emit(f"⚠ FFmpeg/Go trả mã {retcode} nhưng file đã được tạo: {output_file}")
+                    # coi là 'thành công có cảnh báo' — không set has_error nếu bạn muốn treat as success
+                else:
+                    worker.log.emit(f"❌ FFmpeg/Go thất bại (retcode={retcode}). Bỏ qua file: {file_path}")
+                    continue  # next file
+
+            if has_error:
+                # nếu đã parse thấy ERROR: từ Go thì bỏ qua file
+                continue
+
+            # Thành công
             worker.log.emit(f"✅ Đã xử lý: {Path(file_path).as_posix()} ➜ {Path(output_file).as_posix()}")
-            
+            worker.progress.emit(int((idx + 1) / total * 100))
 
-            percent = int((idx + 1) / total * 100)
-            worker.progress.emit(percent)
         return True
+
     except Exception as e:
         worker.log.emit(f"Error: {e}")
         return False
-
 def run_go_convert(worker, input_path, output_path, input_ext, output_ext):
     try:
         input_files = glob.glob(os.path.join(input_path, f"*{input_ext.lower()}"))

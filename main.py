@@ -39,7 +39,7 @@ class VideoScaleTab(QWidget):
         format_label = QLabel("🎞️ Output Format:")
         self.format_combo = QComboBox()
         self.format_combo.setEditable(False)
-        self.format_combo.addItems([".mp4", ".mov", ".mkv", ".avi"])
+        self.format_combo.addItems([".mp4", ".mov", ".avi"])
         layout.addWidget(format_label, 2, 0)
         layout.addWidget(self.format_combo, 2, 1)
 
@@ -205,7 +205,7 @@ class MergeMediaTab(QWidget):
 
         self.format_combo = QComboBox()
         self.format_combo.setEditable(False)
-        self.format_combo.addItems([".mp4", ".mov", ".mkv", ".avi"])
+        self.format_combo.addItems([".mp4", ".mov", ".avi"])
         layout.addWidget(self.format_combo, 3, 2)
 
         # Resolution and Bitrate (same row)
@@ -551,7 +551,7 @@ class ConvertTab(QWidget):
         # Input Format ComboBox
         input_format_label = QLabel("🎞 Input Format:")
         self.input_format_combo = QComboBox()
-        self.input_format_combo.addItems([".mp4", ".mkv", ".avi", ".mov", ".mp3", ".wav", ".aac", ".flac"])
+        self.input_format_combo.addItems([".mp4", ".avi", ".mov", ".mp3", ".wav", ".aac", ".flac"])
         layout.addWidget(input_format_label, 1, 0)
         layout.addWidget(self.input_format_combo, 1, 1, 1, 2)
 
@@ -568,7 +568,7 @@ class ConvertTab(QWidget):
         # Output Format ComboBox
         output_format_label = QLabel("🎯 Output Format:")
         self.output_format_combo = QComboBox()
-        self.output_format_combo.addItems([".mp4", ".avi", ".mkv", ".mp3", ".aac", ".wav", ".flv"])
+        self.output_format_combo.addItems([".mp4", ".avi", ".mp3", ".aac", ".wav", ".flv"])
         layout.addWidget(output_format_label, 3, 0)
         layout.addWidget(self.output_format_combo, 3, 1, 1, 2)
 
@@ -597,7 +597,7 @@ class ConvertTab(QWidget):
         self.setLayout(layout)
 
     def update_output_format(self):
-        video_formats = [".mp4", ".avi", ".mkv", ".mov", ".flv"]
+        video_formats = [".mp4", ".avi", ".mov", ".flv"]
         audio_formats = [".mp3", ".aac", ".wav", ".flac", ".m4a"]
 
         current_input = self.input_format_combo.currentText()

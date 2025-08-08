@@ -139,16 +139,15 @@ func main() {
 		// Chèn thêm thông số trước codec (nếu cần)
 		// Thêm vào cuối lệnh: bạn cũng có thể thêm tune, rc, profile nếu muốn
 		extraGpuArgs := []string{
-			"-rc", "vbr",            // Rate control: vbr (Variable Bitrate)
-			"-cq", "19",             // Constant Quality, nhỏ hơn = chất lượng cao hơn
-			"-bf", "2",              // B-frames
-			"-g", "60",              // GOP size
+			"-rc", "vbr", // Rate control: vbr (Variable Bitrate)
+			"-cq", "19", // Constant Quality, nhỏ hơn = chất lượng cao hơn
+			"-bf", "2", // B-frames
+			"-g", "60", // GOP size
 			"-movflags", "+faststart", // Tối ưu phát trực tuyến
 		}
 		ffmpegArgs = append(ffmpegArgs[:len(ffmpegArgs)-1], extraGpuArgs...)
 		ffmpegArgs = append(ffmpegArgs, outputFile)
 	}
-
 
 	cmd := exec.Command(ffmpeg, append([]string{"-y"}, ffmpegArgs...)...)
 	cmd.Stdout = os.Stdout
