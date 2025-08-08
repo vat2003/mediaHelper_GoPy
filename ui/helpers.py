@@ -173,50 +173,48 @@ def run_go_extract_audio(worker, input_folder, output_folder, output_ext=".mp3")
         return False
 
 def run_go_random_merge(worker, input_path, output_path, files_per_group="0", num_outputs="1"):
+    files_per_group = int(files_per_group)
     try:
-        # Lấy danh sách file đầu vào để đếm số lượng
         video_exts = ('*.mp4', '*.avi', '*.mkv', '*.mov', '*.flv')
         audio_exts = ('*.mp3', '*.wav', '*.aac')
         media_exts = video_exts + audio_exts
 
         input_files = [f for ext in media_exts for f in glob.glob(os.path.join(input_path, ext))]
-        total = int(num_outputs)
+        worker.log.emit(f"📂 Tìm thấy {len(input_files)} file media hợp lệ.")
 
-        if len(input_files) < int(files_per_group):
+        if int(files_per_group) != 0 and len(input_files) < int(files_per_group):
             worker.log.emit("⚠ Không đủ file để ghép.")
             return False
 
-        # Đường dẫn đến file Go đã biên dịch hoặc file .go
         project_dir = os.getcwd()
         exe_path = os.path.join(project_dir, "bin", "go_randomMerge.exe")
 
-        for i in range(total):
+        for i in range((int)(num_outputs)):
             if worker.is_stopped():
                 worker.log.emit("🛑 Dừng merge ngẫu nhiên theo yêu cầu.")
                 return False
 
-            worker.log.emit(f"🚀 Ghép ngẫu nhiên nhóm {i+1}/{total}...")
-            
-            # Gọi lệnh: go run randomMerge.go <input_path> <output_path> <files_per_group> <num_outputs>
+            worker.log.emit(f"🚀 Ghép ngẫu nhiên nhóm {i+1}/{num_outputs}...")
+
             cmd = [
                 exe_path,
                 input_path,
                 output_path,
-                str(files_per_group),
-                "1"  # chỉ sinh ra 1 output mỗi vòng để xử lý tuần tự và cập nhật tiến độ
+                str(files_per_group)
             ]
-
+            worker.log.emit(f"🔧 Lệnh: {' '.join(cmd)}")
             result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
 
             if result.returncode != 0:
                 worker.log.emit(f"❌ Lỗi randomMerge nhóm {i+1}:")
-                worker.log.emit(f"📄 STDOUT:\n{result.stdout}")
-                worker.log.emit(f"🐛 STDERR:\n{result.stderr}")
+                if result.stdout.strip():
+                    worker.log.emit(f"📄 STDOUT:\n{result.stdout}")
+                if result.stderr.strip():
+                    worker.log.emit(f"🐛 STDERR:\n{result.stderr}")
                 continue
 
-            worker.log.emit(f"✅ Đã ghép nhóm {i+1}/{total}")
-
-            percent = int((i + 1) / total * 100)
+            worker.log.emit(f"✅ Đã ghép nhóm {i+1}/{num_outputs}")
+            percent = int((i + 1) / (int)(num_outputs) * 100)
             worker.progress.emit(percent)
 
         return True
@@ -224,6 +222,7 @@ def run_go_random_merge(worker, input_path, output_path, files_per_group="0", nu
     except Exception as e:
         worker.log.emit(f"Error: {e}")
         return False
+
 
 def run_go_merge(worker, input_video_image, input_audio, output_path, resolution="1080", mode="gpu", duration="0", bitrate="2000k", fps="0", ext=".mp4"):
     try:
@@ -247,7 +246,7 @@ def run_go_merge(worker, input_video_image, input_audio, output_path, resolution
         # Đường dẫn tới file thư thi go_mergeMedia
         project_dir = os.getcwd()
         exe_path = os.path.join(project_dir, "bin", "go_mergeMedia.exe")
-
+        
         for idx, file_path in enumerate(input_files):
             if worker.is_stopped():
                 worker.log.emit("🛑 Dừng merge theo yêu cầu.")

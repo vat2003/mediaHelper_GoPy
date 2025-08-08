@@ -18,7 +18,7 @@ var videoExts = []string{".mp4", ".avi", ".mkv", ".mov", ".flv"}
 var audioExts = []string{".mp3", ".wav", ".aac"}
 var mediaExts = append(videoExts, audioExts...)
 
-func isMedaFile(filename string) bool {
+func isMediaFile(filename string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
 	for _, e := range mediaExts {
 		if ext == e {
@@ -36,7 +36,7 @@ func getMediaFiles(folder string) ([]string, error) {
 
 	var mediaFiles []string
 	for _, file := range files {
-		if !file.IsDir() && isMedaFile(file.Name()) {
+		if !file.IsDir() && isMediaFile(file.Name()) {
 			mediaFiles = append(mediaFiles, filepath.Join(folder, file.Name()))
 		}
 	}
@@ -47,10 +47,11 @@ func getDuration(file string) float64 {
 	ffprobe := utils.GetFFprobePath()
 	cmd := exec.Command(ffprobe, "-v", "error", "-show_entries", "format=duration",
 		"-of", "default=noprint_wrappers=1:nokey=1", file)
-	out, err := cmd.Output()
 	// Ẩn console window (chỉ có tác dụng trên Windows)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	out, err := cmd.Output()
 	if err != nil {
+		fmt.Printf("⚠️ Lỗi ffprobe: %v - file: %s\n", err, file)
 		return 0
 	}
 	var duration float64
@@ -90,7 +91,7 @@ func createTracklist(files []string, tracklistPath string) {
 		}
 
 		base := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
-		line := fmt.Sprintf("%s %s\n", secondsToHHMMSS(currentTime), base)
+		line := fmt.Sprintf("[%s] %s\n", secondsToHHMMSS(currentTime), base)
 		writer.WriteString(line)
 
 		currentTime += duration
@@ -114,104 +115,100 @@ func createTempConcatList(files []string, path string) error {
 		}
 		// Escape dấu \ và ' cho ffmpeg
 		escaped := strings.ReplaceAll(abs, "\\", "\\\\")
+		escaped = strings.ReplaceAll(escaped, "'", "'\\''")
 		writer.WriteString(fmt.Sprintf("file '%s'\n", escaped))
 	}
 	return writer.Flush()
 }
 
-func concatMedia(inputFolder, outputFolder string, filesPerGroup, numOutputs int) {
+func concatMedia(inputFolder, outputFolder string, filesPerGroup int) {
 	mediaFiles, err := getMediaFiles(inputFolder)
 	if err != nil {
-		fmt.Println("Lỗi đọc thư mục:", err)
+		fmt.Println("❌ Lỗi đọc thư mục:", err)
 		return
 	}
 
-	if len(mediaFiles) < filesPerGroup {
-		fmt.Println("❗ Không đủ file để ghép.")
+	if len(mediaFiles) == 0 {
+		fmt.Println("❌ Không có file media nào trong thư mục.")
 		return
 	}
 
 	os.MkdirAll(outputFolder, os.ModePerm)
-	rand.Seed(time.Now().Unix())
-	timestamp := fmt.Sprintf("%d", time.Now().Unix())
 
-	for i := 1; i <= numOutputs; i++ {
-		// Random chọn n file
-		rand.Shuffle(len(mediaFiles), func(i, j int) {
-			mediaFiles[i], mediaFiles[j] = mediaFiles[j], mediaFiles[i]
-		})
-		selected := mediaFiles[:filesPerGroup]
+	timestamp := time.Now().UnixNano() // Sử dụng nano giây để đảm bảo duy nhất
 
-		// Đếm số lượng mỗi định dạng
-		extCount := make(map[string]int)
-		hasVideo := false
-		hasAudio := false
-		for _, file := range selected {
-			ext := strings.ToLower(filepath.Ext(file))
-			extCount[ext]++
-			if contains(videoExts, ext) {
-				hasVideo = true
-			}
-			if contains(audioExts, ext) {
-				hasAudio = true
-			}
-		}
+	// Shuffle và chọn filesPerGroup file
+	shuffled := append([]string(nil), mediaFiles...)
+	rand.Shuffle(len(shuffled), func(i, j int) {
+		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+	})
+	selected := shuffled[:filesPerGroup]
 
-		var ext string
-		if len(extCount) == 1 {
-			// Tất cả cùng định dạng
-			for e := range extCount {
-				ext = e
-			}
-		} else {
-			// Nhiều loại → chọn loại phổ biến nhất
-			maxCount := 0
-			for e, count := range extCount {
-				if count > maxCount {
-					maxCount = count
-					ext = e
-				}
-			}
-			// Nếu có cả audio & video → ưu tiên mp4
-			if hasVideo && hasAudio {
-				ext = ".mp4"
-			}
-		}
+	ext := getOutputExtension(selected)
 
-		outputBase := fmt.Sprintf("%s_output_%d", timestamp, i)
-		outputPath := filepath.Join(outputFolder, outputBase+ext)
-		tracklistPath := filepath.Join(outputFolder, outputBase+"_tracklist.txt")
-		tempListPath := filepath.Join(inputFolder, fmt.Sprintf("temp_list_%d.txt", i))
+	outputBase := fmt.Sprintf("%d_output", (timestamp))
+	outputPath := filepath.Join(outputFolder, outputBase+ext)
+	tracklistPath := filepath.Join(outputFolder, outputBase+"_tracklist.txt")
+	tempListPath := filepath.Join(os.TempDir(), fmt.Sprintf("temp_list_%d.txt", timestamp))
 
-		// Ghi danh sách concat tạm
-		err := createTempConcatList(selected, tempListPath)
-		if err != nil {
-			fmt.Println("❌ Không thể tạo danh sách file tạm:", err)
-			continue
-		}
-
-		ffmpeg := utils.GetFFmpegPath()
-		// Gọi ffmpeg
-		cmd := exec.Command(ffmpeg, "-hide_banner", "-fflags", "+genpts",
-			"-f", "concat", "-safe", "0", "-i", tempListPath,
-			"-c", "copy", "-y", outputPath)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true} // Ẩn console trên Windows
-
-		fmt.Println("🚀 Đang xử lý:", outputPath)
-		err = cmd.Run()
-		if err != nil {
-			fmt.Println("❌ Lỗi khi ghép file:", err)
-			continue
-		}
-
-		createTracklist(selected, tracklistPath)
-		os.Remove(tempListPath)
-
-		fmt.Println("Xong:", outputPath)
+	if err := createTempConcatList(selected, tempListPath); err != nil {
+		fmt.Println("❌ Không thể tạo danh sách file tạm:", err)
+		return
 	}
-	fmt.Println("🎉 Hoàn tất.")
+
+	ffmpeg := utils.GetFFmpegPath()
+	cmd := exec.Command(ffmpeg, "-hide_banner", "-fflags", "+genpts",
+		"-f", "concat", "-safe", "0", "-i", tempListPath,
+		"-c", "copy", "-y", outputPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+
+	fmt.Println("🚀 Đang xử lý:", outputPath)
+	if err := cmd.Run(); err != nil {
+		fmt.Println("❌ Lỗi khi ghép file:", err)
+		return
+	}
+
+	createTracklist(selected, tracklistPath)
+	os.Remove(tempListPath)
+
+	fmt.Println("✅ Xong:", outputPath)
+}
+
+func getOutputExtension(files []string) string {
+	extCount := make(map[string]int)
+	hasVideo, hasAudio := false, false
+
+	for _, file := range files {
+		ext := strings.ToLower(filepath.Ext(file))
+		extCount[ext]++
+		if contains(videoExts, ext) {
+			hasVideo = true
+		}
+		if contains(audioExts, ext) {
+			hasAudio = true
+		}
+	}
+
+	if len(extCount) == 1 {
+		for e := range extCount {
+			return e
+		}
+	}
+
+	maxCount := 0
+	var ext string
+	for e, count := range extCount {
+		if count > maxCount {
+			maxCount = count
+			ext = e
+		}
+	}
+	if hasVideo && hasAudio {
+		return ".mp4"
+	}
+	return ext
 }
 
 func contains(slice []string, s string) bool {
@@ -224,20 +221,15 @@ func contains(slice []string, s string) bool {
 }
 
 func main() {
-	if len(os.Args) != 5 {
-		fmt.Println("Usage: go run random_concat.go <input_folder> <output_folder> <files_per_group> <num_outputs>")
+	if len(os.Args) != 4 {
+		fmt.Println("Usage: go run random_concat.go <input_folder> <output_folder> <files_per_group>")
 		return
 	}
 
 	inputFolder := os.Args[1]
 	outputFolder := os.Args[2]
 	filesPerGroup := atoi(os.Args[3])
-	numOutputs := atoi(os.Args[4])
 
-	if numOutputs <= 0 {
-		fmt.Println("Lỗi: Output file count phải > 0")
-		os.Exit(1)
-	}
 	// 🟡 NEW: Nếu filesPerGroup = 0 thì dùng toàn bộ số file trong thư mục
 	if filesPerGroup == 0 {
 		allFiles, err := getMediaFiles(inputFolder)
@@ -249,7 +241,7 @@ func main() {
 		fmt.Printf("📦 Input File Count = 0 => Dùng toàn bộ %d file\n", filesPerGroup)
 	}
 
-	concatMedia(inputFolder, outputFolder, filesPerGroup, numOutputs)
+	concatMedia(inputFolder, outputFolder, filesPerGroup)
 }
 
 func atoi(s string) int {
