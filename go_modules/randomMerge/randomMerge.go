@@ -142,18 +142,47 @@ func concatMedia(inputFolder, outputFolder string, filesPerGroup, numOutputs int
 		})
 		selected := mediaFiles[:filesPerGroup]
 
-		// Xác định định dạng đầu ra
-		ext := strings.ToLower(filepath.Ext(selected[0]))
-		if contains(audioExts, ext) {
-			ext = ".mp3"
+		// Đếm số lượng mỗi định dạng
+		extCount := make(map[string]int)
+		hasVideo := false
+		hasAudio := false
+		for _, file := range selected {
+			ext := strings.ToLower(filepath.Ext(file))
+			extCount[ext]++
+			if contains(videoExts, ext) {
+				hasVideo = true
+			}
+			if contains(audioExts, ext) {
+				hasAudio = true
+			}
+		}
+
+		var ext string
+		if len(extCount) == 1 {
+			// Tất cả cùng định dạng
+			for e := range extCount {
+				ext = e
+			}
 		} else {
-			ext = ".mp4"
+			// Nhiều loại → chọn loại phổ biến nhất
+			maxCount := 0
+			for e, count := range extCount {
+				if count > maxCount {
+					maxCount = count
+					ext = e
+				}
+			}
+			// Nếu có cả audio & video → ưu tiên mp4
+			if hasVideo && hasAudio {
+				ext = ".mp4"
+			}
 		}
 
 		outputBase := fmt.Sprintf("%s_output_%d", timestamp, i)
 		outputPath := filepath.Join(outputFolder, outputBase+ext)
 		tracklistPath := filepath.Join(outputFolder, outputBase+"_tracklist.txt")
 		tempListPath := filepath.Join(inputFolder, fmt.Sprintf("temp_list_%d.txt", i))
+
 		// Ghi danh sách concat tạm
 		err := createTempConcatList(selected, tempListPath)
 		if err != nil {
@@ -168,8 +197,7 @@ func concatMedia(inputFolder, outputFolder string, filesPerGroup, numOutputs int
 			"-c", "copy", "-y", outputPath)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		// Ẩn console window (chỉ có tác dụng trên Windows)
-		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true} // Ẩn console trên Windows
 
 		fmt.Println("🚀 Đang xử lý:", outputPath)
 		err = cmd.Run()

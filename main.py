@@ -46,7 +46,7 @@ class VideoScaleTab(QWidget):
         # 📺 Resolution | 📊 Video Bitrate
         resolution_label = QLabel("📺 Resolution:📊 Video Bitrate")
         self.resolution_combo = QComboBox()
-        self.resolution_combo.addItems(["1920x1080", "2560x1440", "3840x2160", "1280x720"])
+        self.resolution_combo.addItems(["1920:1080", "2560:1440", "3840:2160", "1280:720"])
         layout.addWidget(resolution_label, 3, 0)
         layout.addWidget(self.resolution_combo, 3, 1)
 
@@ -211,7 +211,7 @@ class MergeMediaTab(QWidget):
         # Resolution and Bitrate (same row)
         resolution_label = QLabel("📺 Resolution | 📊 Bitrate")
         self.resolution_combo = QComboBox()
-        self.resolution_combo.addItems(["1920x1080", "2560x1440", "3840x2160", "1280x720"])
+        self.resolution_combo.addItems(["1920:1080", "2560:1440", "3840:2160", "1280:720"])
         layout.addWidget(resolution_label, 4, 0)
         layout.addWidget(self.resolution_combo, 4, 1)
 

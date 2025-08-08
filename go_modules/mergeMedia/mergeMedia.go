@@ -36,6 +36,7 @@ func main() {
 	processor := os.Args[5]
 	outputDurationStr := os.Args[6]
 	ffmpeg := utils.GetFFmpegPath()
+	fmt.Println("FFmpeg path:", ffmpeg)
 
 	// Lấy bitrate mặc định nếu không truyền
 	bitrate := "1500k"
@@ -76,13 +77,24 @@ func main() {
 	// Tạo filter scale
 	var scaleFilter string
 	if fps > 0 {
-		scaleFilter = fmt.Sprintf("fps=%d,scale=%s,format=yuv420p", fps, resolution)
+		scaleFilter = fmt.Sprintf("fps=%d,scale=%s", fps, resolution)
 	} else {
 		fmt.Println("⚠️ FPS không được đặt, sử dụng mặc định của FFmpeg.")
-		scaleFilter = fmt.Sprintf("scale=%s,format=yuv420p", resolution)
+		scaleFilter = fmt.Sprintf("scale=%s", resolution)
 	}
 
 	var ffmpegArgs []string
+	var videoCodec string
+	var preset string
+
+	// Chọn codec và preset tùy theo CPU hoặc GPU
+	if processor == "gpu" {
+		videoCodec = "h264_nvenc"
+		preset = "p4" // preset chất lượng cao cho GPU (có thể dùng: p1 (nhanh) đến p7 (chất lượng cao))
+	} else {
+		videoCodec = "libx264"
+		preset = "ultrafast" // preset nhanh cho CPU
+	}
 
 	if isImage {
 		// Với ảnh: lặp ảnh -> tạo video
@@ -93,8 +105,10 @@ func main() {
 			"-i", inputAudio,
 			"-t", fmt.Sprintf("%.2f", outputDuration),
 			"-vf", scaleFilter,
-			"-c:v", "libx264",
-			"-preset", "ultrafast",
+			"-map", "0:v:0",
+			"-map", "1:a:0",
+			"-c:v", videoCodec,
+			"-preset", preset,
 			"-b:v", bitrate,
 			"-c:a", "aac",
 			"-shortest",
@@ -109,10 +123,10 @@ func main() {
 			"-i", inputAudio,
 			"-t", fmt.Sprintf("%.2f", outputDuration),
 			"-vf", scaleFilter,
-			"-map", "0:v:0", // chỉ lấy video từ input 0
-			"-map", "1:a:0", // chỉ lấy audio từ input 1
-			"-c:v", "libx264",
-			"-preset", "fast",
+			"-map", "0:v:0",
+			"-map", "1:a:0",
+			"-c:v", videoCodec,
+			"-preset", preset,
 			"-b:v", bitrate,
 			"-c:a", "aac",
 			"-shortest",
@@ -120,14 +134,21 @@ func main() {
 		}
 	}
 
-	// Nếu dùng GPU
+	// Nếu dùng GPU, thêm các thông số kỹ thuật cho NVIDIA
 	if processor == "gpu" {
-		for i := range ffmpegArgs {
-			if ffmpegArgs[i] == "libx264" {
-				ffmpegArgs[i] = "h264_nvenc"
-			}
+		// Chèn thêm thông số trước codec (nếu cần)
+		// Thêm vào cuối lệnh: bạn cũng có thể thêm tune, rc, profile nếu muốn
+		extraGpuArgs := []string{
+			"-rc", "vbr",            // Rate control: vbr (Variable Bitrate)
+			"-cq", "19",             // Constant Quality, nhỏ hơn = chất lượng cao hơn
+			"-bf", "2",              // B-frames
+			"-g", "60",              // GOP size
+			"-movflags", "+faststart", // Tối ưu phát trực tuyến
 		}
+		ffmpegArgs = append(ffmpegArgs[:len(ffmpegArgs)-1], extraGpuArgs...)
+		ffmpegArgs = append(ffmpegArgs, outputFile)
 	}
+
 
 	cmd := exec.Command(ffmpeg, append([]string{"-y"}, ffmpegArgs...)...)
 	cmd.Stdout = os.Stdout
@@ -139,7 +160,7 @@ func main() {
 	fmt.Println("FFmpeg command:", strings.Join(cmd.Args, " "))
 
 	if err := cmd.Run(); err != nil {
-		fmt.Println("❌ Lỗi khi chạy ffmpeg:", err)
+		fmt.Printf("❌ Lỗi khi chạy FFmpeg (%s): %v\n", cmd.String(), err)
 		return
 	}
 
