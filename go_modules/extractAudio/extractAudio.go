@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"go_modules/utils"
@@ -30,17 +31,46 @@ func main() {
 		os.Exit(2)
 	}
 
-	outputExt := filepath.Ext(outputFile)
+	outputExt := strings.ToLower(filepath.Ext(outputFile))
+	isCopy := utils.ShouldCopyCodec(codec, outputExt)
 
-	var cmd *exec.Cmd
-	if utils.ShouldCopyCodec(codec, outputExt) {
-		fmt.Printf("🎧 Extract audio (copy): %s → %s\n", inputFile, outputFile)
-		cmd = exec.Command(ffmpeg, "-y", "-i", inputFile, "-map", "a", "-c:a", "copy", outputFile)
+	var args []string
+	if isCopy {
+		args = []string{
+			"-y", "-i", inputFile,
+			"-map", "0:a:0?", "-vn", "-sn", "-dn", "-map", "-0:d",
+			"-fflags", "+genpts", "-avoid_negative_ts", "make_zero",
+			"-c:a", "copy",
+		}
+		switch outputExt {
+		case ".mp4", ".m4a", ".mov":
+			// an toàn cho AAC: chuyển ADTS → ASC nếu có
+			args = append(args, "-bsf:a", "aac_adtstoasc", "-movflags", "+faststart")
+		}
+		args = append(args, outputFile)
 	} else {
-		selectedCodec := utils.GetTranscodeCodec(outputExt)
-		fmt.Printf("🎧 Extract audio (transcode %s → %s): %s → %s\n", codec, selectedCodec, inputFile, outputFile)
-		cmd = exec.Command(ffmpeg, "-y", "-i", inputFile, "-map", "a", "-c:a", selectedCodec, outputFile)
+		enc := utils.GetTranscodeCodec(outputExt)
+		args = []string{
+			"-y", "-i", inputFile,
+			"-map", "0:a:0?", "-vn", "-sn", "-dn", "-map", "-0:d",
+			"-fflags", "+genpts", "-avoid_negative_ts", "make_zero",
+			"-c:a", enc,
+		}
+		switch outputExt {
+		case ".mp3":
+			// CBR, đồng bộ: tránh VBR nếu bạn cần bitrate cố định
+			args = append(args, "-b:a", "192k", "-ar", "48000", "-ac", "2", "-write_xing", "1")
+		case ".mp4", ".m4a":
+			args = append(args, "-b:a", "192k", "-ar", "48000", "-ac", "2", "-movflags", "+faststart")
+		case ".wav":
+			args = append(args, "-ar", "48000", "-ac", "2") // PCM
+		default:
+			args = append(args, "-b:a", "192k", "-ar", "48000", "-ac", "2")
+		}
+		args = append(args, outputFile)
 	}
+
+	cmd := exec.Command(ffmpeg, args...)
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
