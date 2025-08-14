@@ -96,6 +96,7 @@ Desktop.ini
 
 # Ignore output directory if any
 output/
+Output/
 temp/
 
 #assets files
