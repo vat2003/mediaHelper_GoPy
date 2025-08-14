@@ -39,7 +39,7 @@ class VideoScaleTab(QWidget):
         format_label = QLabel("🎞️ Output Format:")
         self.format_combo = QComboBox()
         self.format_combo.setEditable(False)
-        self.format_combo.addItems([".mp4", ".mov", ".avi"])
+        self.format_combo.addItems([".mp4", ".mov", ".avi", ".flv", ".mkv"])
         layout.addWidget(format_label, 2, 0)
         layout.addWidget(self.format_combo, 2, 1)
 
@@ -153,9 +153,9 @@ class VideoScaleTab(QWidget):
     def on_merge_finished(self, success):
         self.convert_btn.setEnabled(True)
         if success:
-            QMessageBox.information(self, "Thành công", "Đã Merge xong!")
+            QMessageBox.information(self, "Thành công", "Đã Scale xong!")
         else:
-            QMessageBox.warning(self, "Dừng / Lỗi", "Merge đã bị dừng hoặc có lỗi.")
+            QMessageBox.warning(self, "Dừng / Lỗi", "Scale đã bị dừng hoặc có lỗi.")
 
     def stop_worker(self):
         if self.worker and self.worker.isRunning():
@@ -739,7 +739,7 @@ class TracklistTab(QWidget):
             start_time = self.seconds_to_hhmmss(current_time)
             filename = os.path.basename(path)
             name, _ = os.path.splitext(filename)
-            line = f"{start_time} {name}"
+            line = f"[{start_time}] {name}"
             lines.append(line)
             current_time += duration
 

@@ -52,7 +52,7 @@ def run_go_videoScale(
 ):
     try:
         # Lọc các file video đầu vào
-        video_exts = ('*.mp4', '*.mov', '*.avi', '*.mkv')
+        video_exts = ('*.mp4', '*.mov', '*.avi', '*.mkv', '*.flv')
         input_files = [f for ext in video_exts for f in glob.glob(os.path.join(input_path, ext))]
 
         total = len(input_files)
