@@ -95,8 +95,8 @@ Desktop.ini
 *.swo
 
 # Ignore output directory if any
-output/
-Output/
+output/*
+Output/*
 temp/
 
 #assets files
