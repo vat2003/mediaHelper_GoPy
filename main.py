@@ -7,7 +7,6 @@ from PyQt6.QtWidgets import (
 import requests
 import zipfile
 import json
-import shutil
 from PyQt6.QtGui import QIcon
 import pyperclip
 from helpers import run_go_convert, run_go_loop, run_go_merge, run_go_random_merge, run_go_extract_audio, run_go_videoScale, get_duration_ffmpeg
@@ -18,7 +17,7 @@ import requests, json, zipfile, os, shutil, sys, subprocess
 from packaging import version
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit, QPushButton, QMessageBox, QProgressDialog
 
-APP_VERSION = "1.2.0"  # Phiên bản hiện tại
+APP_VERSION = "1.2.2"  # Phiên bản hiện tại
 
 class UpdateTab(QWidget):
     def __init__(self):
@@ -40,7 +39,7 @@ class UpdateTab(QWidget):
 
     def check_update(self):
         try:
-            url = "https://www.dropbox.com/scl/fi/oiggh3m4d9qbtxyw8iqxm/version.json?rlkey=yt8908hx3vk1bkehtksipn4n6&dl=1"
+            url = "https://www.dropbox.com/scl/fi/yarg0yov0vduaxnyeld1g/version.json?rlkey=drpnxt1rurxl9fg45wpg7uyye&st=9kvrskqz&dl=1"
             resp = requests.get(url, timeout=5)
             data = json.loads(resp.text)
 
@@ -52,7 +51,7 @@ class UpdateTab(QWidget):
 
             if version.parse(latest_version) > version.parse(APP_VERSION):
                 reply = QMessageBox.question(
-                    self,
+                    self.window(),
                     "Có bản cập nhật mới",
                     f"Phiên bản mới: {latest_version}\nBạn có muốn tải và cập nhật không?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
@@ -60,9 +59,9 @@ class UpdateTab(QWidget):
                 if reply == QMessageBox.StandardButton.Yes:
                     self.download_and_update(download_url)
             else:
-                QMessageBox.information(self, "Thông báo", "Bạn đang dùng phiên bản mới nhất.")
+                QMessageBox.information(self.window(), "Thông báo", "Bạn đang dùng phiên bản mới nhất.")
         except Exception as e:
-            QMessageBox.warning(self, "Lỗi", f"Không thể kiểm tra cập nhật:\n{e}")
+            QMessageBox.warning(self.window(), "Lỗi", f"Không thể kiểm tra cập nhật:\n{e}")
 
     def download_and_update(self, url):
         try:
@@ -108,12 +107,12 @@ class UpdateTab(QWidget):
             with open(batch_file, "w", encoding="utf-8") as f:
                 f.write(batch_content)
 
-            QMessageBox.information(self, "Hoàn tất", "Ứng dụng sẽ tự cập nhật khi bạn đóng.")
+            QMessageBox.information(self.window(), "Hoàn tất", "Ứng dụng sẽ tự cập nhật khi bạn đóng.")
             subprocess.Popen(["cmd", "/c", batch_file])
             sys.exit(0)
 
         except Exception as e:
-            QMessageBox.warning(self, "Lỗi", f"Cập nhật thất bại:\n{e}")
+            QMessageBox.warning(self.window(), "Lỗi", f"Cập nhật thất bại:\n{e}")
 
 
 class VideoScaleTab(QWidget):
@@ -258,9 +257,9 @@ class VideoScaleTab(QWidget):
     def on_merge_finished(self, success):
         self.convert_btn.setEnabled(True)
         if success:
-            QMessageBox.information(self, "Thành công", "Đã Scale xong!")
+            QMessageBox.information(self.window(), "Thành công", "Đã Scale xong!")
         else:
-            QMessageBox.warning(self, "Dừng / Lỗi", "Scale đã bị dừng hoặc có lỗi.")
+            QMessageBox.warning(self.window(), "Dừng / Lỗi", "Scale đã bị dừng hoặc có lỗi.")
 
     def stop_worker(self):
         if self.worker and self.worker.isRunning():
@@ -409,9 +408,9 @@ class MergeMediaTab(QWidget):
     def on_merge_finished(self, success):
         self.convert_btn.setEnabled(True)
         if success:
-            QMessageBox.information(self, "Thành công", "Đã Merge xong!")
+            QMessageBox.information(self.window(), "Thành công", "Đã Merge xong!")
         else:
-            QMessageBox.warning(self, "Dừng / Lỗi", "Merge đã bị dừng hoặc có lỗi.")
+            QMessageBox.warning(self.window(), "Dừng / Lỗi", "Merge đã bị dừng hoặc có lỗi.")
 
     def stop_worker(self):
         if self.worker and self.worker.isRunning():
@@ -489,7 +488,7 @@ class MergeRandomTab(QWidget):
         output_count = self.output_count_input.value()
 
         if not os.path.isdir(input_folder) or not os.path.isdir(output_folder):
-            QMessageBox.warning(self, "Lỗi", "Hãy chọn thư mục hợp lệ.")
+            QMessageBox.warning(self.window(), "Lỗi", "Hãy chọn thư mục hợp lệ.")
             return
 
         self.convert_btn.setEnabled(False)
@@ -522,9 +521,9 @@ class MergeRandomTab(QWidget):
     def on_convert_finished(self, success):
         self.convert_btn.setEnabled(True)
         if success:
-            QMessageBox.information(self, "✅ Thành công", "Đã merge xong!")
+            QMessageBox.information(self.window(), "✅ Thành công", "Đã merge xong!")
         else:
-            QMessageBox.warning(self, "⚠️ Dừng / Lỗi", "Merge đã bị dừng hoặc xảy ra lỗi.")
+            QMessageBox.warning(self.window(), "⚠️ Dừng / Lỗi", "Merge đã bị dừng hoặc xảy ra lỗi.")
 
 
 class LoopTab(QWidget):
@@ -629,9 +628,9 @@ class LoopTab(QWidget):
     def on_loop_finished(self, success):
         self.convert_btn.setEnabled(True)
         if success:
-            QMessageBox.information(self, "Thành công", "Đã Loop xong!")
+            QMessageBox.information(self.window(), "Thành công", "Đã Loop xong!")
         else:
-            QMessageBox.warning(self, "Dừng / Lỗi", "Loop đã bị dừng hoặc có lỗi.")
+            QMessageBox.warning(self.window(), "Dừng / Lỗi", "Loop đã bị dừng hoặc có lỗi.")
 
     def stop_worker(self):
         if self.worker and self.worker.isRunning():
@@ -753,9 +752,9 @@ class ConvertTab(QWidget):
     def on_convert_finished(self, success):
         self.convert_btn.setEnabled(True)
         if success:
-            QMessageBox.information(self, "Thành công", "Đã convert xong!")
+            QMessageBox.information(self.window(), "Thành công", "Đã convert xong!")
         else:
-            QMessageBox.warning(self, "Dừng / Lỗi", "Convert đã bị dừng hoặc có lỗi.")
+            QMessageBox.warning(self.window(), "Dừng / Lỗi", "Convert đã bị dừng hoặc có lỗi.")
 
     def stop_worker(self):
         if self.worker and self.worker.isRunning():
@@ -818,22 +817,22 @@ class TracklistTab(QWidget):
             try:
                 with open(file_path, "w", encoding="utf-8") as f:
                     f.write(self.output_text.toPlainText())
-                QMessageBox.information(self, "Thành công", "Đã lưu file tracklist!")
+                QMessageBox.information(self.window(), "Thành công", "Đã lưu file tracklist!")
             except Exception as e:
-                QMessageBox.warning(self, "Lỗi", f"Không thể lưu file: {e}")
+                QMessageBox.warning(self.window(), "Lỗi", f"Không thể lưu file: {e}")
     
     def generate_tracklist(self):
         raw_text = self.input_text.toPlainText()
         paths = [line.strip().strip('"') for line in raw_text.splitlines() if line.strip()]
         if not paths:
-            QMessageBox.warning(self, "Thiếu dữ liệu", "Vui lòng nhập ít nhất 1 đường dẫn.")
+            QMessageBox.warning(self.window(), "Thiếu dữ liệu", "Vui lòng nhập ít nhất 1 đường dẫn.")
             return
 
         try:
             tracklist = self.build_tracklist(paths)
             self.output_text.setPlainText(tracklist)
         except Exception as e:
-            QMessageBox.critical(self, "Lỗi", f"Lỗi khi tạo tracklist:\n{e}")
+            QMessageBox.critical(self.window(), "Lỗi", f"Lỗi khi tạo tracklist:\n{e}")
 
     def build_tracklist(self, paths):
         lines = []
@@ -944,9 +943,9 @@ class ExtractAudioTab(QWidget):
     def on_convert_finished(self, success):
         self.convert_btn.setEnabled(True)
         if success:
-            QMessageBox.information(self, "Thành công", "Đã extract xong!")
+            QMessageBox.information(self.window(), "Thành công", "Đã extract xong!")
         else:
-            QMessageBox.warning(self, "Dừng / Lỗi", "extract đã bị dừng hoặc có lỗi.")
+            QMessageBox.warning(self.window(), "Dừng / Lỗi", "extract đã bị dừng hoặc có lỗi.")
 
     def stop_worker(self):
         if self.worker and self.worker.isRunning():
