@@ -1,13 +1,12 @@
 # ui/main.py
 import os
-import subprocess
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QTabWidget, QVBoxLayout,
     QPushButton, QLabel, QFileDialog, QLineEdit, QGridLayout, QComboBox, QMessageBox, QProgressBar, QTextEdit, QHBoxLayout, QSpinBox, QWidget, QGridLayout
 )
 from PyQt6.QtGui import QIcon
 import pyperclip
-from ui.helpers import run_go_convert, run_go_loop, run_go_merge, run_go_random_merge, run_go_extract_audio, run_go_videoScale
+from helpers import run_go_convert, run_go_loop, run_go_merge, run_go_random_merge, run_go_extract_audio, run_go_videoScale, get_duration_ffmpeg
 from ui.workers import BaseWorker
 from functools import partial
 
@@ -735,7 +734,7 @@ class TracklistTab(QWidget):
         current_time = 0.0
 
         for path in paths:
-            duration = self.get_duration(path)
+            duration = get_duration_ffmpeg(path)
             start_time = self.seconds_to_hhmmss(current_time)
             filename = os.path.basename(path)
             name, _ = os.path.splitext(filename)
@@ -744,22 +743,6 @@ class TracklistTab(QWidget):
             current_time += duration
 
         return "\n".join(lines)
-
-    def get_duration(self, path):
-        project_dir = os.getcwd()
-        ffprobe_path = os.path.join(project_dir, "assets", "ffmpeg", "ffprobe.exe")
-        try:
-            # Use ffprobe to get duration in seconds
-            result = subprocess.run(
-                [ffprobe_path, "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                creationflags=subprocess.CREATE_NO_WINDOW
-            )
-            return float(result.stdout.strip())
-        except Exception as e:
-            raise RuntimeError(f"Lỗi đọc thời lượng file: {path}\n{e}\n{ffprobe_path}")
 
     def seconds_to_hhmmss(self, seconds):
         h = int(seconds // 3600)
@@ -868,7 +851,14 @@ class MainWindow(QWidget):
         super().__init__()
         self.resize(700, 400)
         self.setWindowTitle("Media Tools")
-        self.setWindowIcon(QIcon("assets/icon.ico"))
+        # Kiểm tra đường dẫn tới file icon
+        if os.path.exists("assets/icon.ico"):
+            icon_path = "assets/icon.ico"
+        elif os.path.exists("_internal/assets/icon.ico"):
+            icon_path = "_internal/assets/icon.ico"
+        else:
+            icon_path = None  # Hoặc đặt một icon mặc định, hoặc không đặt icon
+        self.setWindowIcon(QIcon(icon_path))
 
         self.tabs = QTabWidget()
         self.tabs.addTab(LoopTab(), "Loop")

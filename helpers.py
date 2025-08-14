@@ -5,10 +5,30 @@ import random
 import sys
 from pathlib import Path
 
+import os
+import sys
+import subprocess
+
+def get_app_base_dir():
+    if getattr(sys, 'frozen', False):  
+        # App đang chạy ở dạng .exe build từ PyInstaller
+        return os.path.dirname(sys.executable)
+    else:
+        # Chạy ở dạng source .py
+        return os.path.dirname(os.path.abspath(__file__))
+
 def get_duration_ffmpeg(file_path):
     try:
-        project_dir = os.getcwd()
-        ffprobe_path = os.path.join(project_dir, "assets", "ffmpeg", "ffprobe.exe")
+        base_dir = get_app_base_dir()
+
+        # Nếu có _internal thì lấy assets trong đó
+        if "_internal" in os.listdir(base_dir):
+            asset_dir = os.path.join(base_dir, "_internal", "assets")
+        else:
+            asset_dir = os.path.join(base_dir, "assets")
+
+        ffprobe_path = os.path.join(asset_dir, "ffmpeg", "ffprobe.exe")
+
         result = subprocess.run(
             [
                 ffprobe_path, '-v', 'error',
@@ -24,6 +44,18 @@ def get_duration_ffmpeg(file_path):
         return float(result.stdout.strip())
     except Exception as e:
         return 0.0
+
+def get_go_file_path(file_name):
+    try:
+        base_dir = get_app_base_dir()
+        # Nếu có _internal thì lấy assets trong đó
+        if "_internal" in os.listdir(base_dir):
+            bin_dir = os.path.join(base_dir, "_internal", "bin")
+        else:
+            bin_dir = os.path.join(base_dir, "bin")
+        return os.path.join(bin_dir, file_name)
+    except Exception as e:
+        return ""
 
 def resource_path(relative_path):
     """Lấy đường dẫn tới file khi chạy .exe"""
@@ -61,8 +93,8 @@ def run_go_videoScale(
             return False
 
         # Đường dẫn đến binary Go
-        project_dir = os.getcwd()
-        exe_path = os.path.join(project_dir, "bin", "go_videoScale.exe")
+        
+        exe_path = get_go_file_path("go_videoScale.exe")
 
         for idx, file_path in enumerate(input_files):
             if worker.is_stopped():
@@ -137,8 +169,8 @@ def run_go_extract_audio(worker, input_folder, output_folder, output_ext=".mp3")
             worker.log.emit("⚠ Không tìm thấy file video nào để trích xuất audio.")
             return False
     
-        project_dir = os.getcwd()
-        exe_path = os.path.join(project_dir, "bin", "go_extractAudio.exe")
+        
+        exe_path = get_go_file_path("go_extractAudio.exe")
 
         for idx, file_path in enumerate(input_files):
             if worker.is_stopped():
@@ -186,8 +218,8 @@ def run_go_random_merge(worker, input_path, output_path, files_per_group="0", nu
             worker.log.emit("⚠ Không đủ file để ghép.")
             return False
 
-        project_dir = os.getcwd()
-        exe_path = os.path.join(project_dir, "bin", "go_randomMerge.exe")
+        
+        exe_path = get_go_file_path("go_randomMerge.exe")
 
         for i in range((int)(num_outputs)):
             if worker.is_stopped():
@@ -244,8 +276,8 @@ def run_go_merge(worker, input_video_image, input_audio, output_path, resolution
             return False
         
         # Đường dẫn tới file thư thi go_mergeMedia
-        project_dir = os.getcwd()
-        exe_path = os.path.join(project_dir, "bin", "go_mergeMedia.exe")
+        
+        exe_path = get_go_file_path("go_mergeMedia.exe")
         
         for idx, file_path in enumerate(input_files):
             if worker.is_stopped():
@@ -317,8 +349,8 @@ def run_go_loop(worker, input_path, output_path, loop_value="1", mode="default")
         # đảm bảo output folder tồn tại
         os.makedirs(output_path, exist_ok=True)
 
-        project_dir = os.getcwd()
-        exe_path = os.path.join(project_dir, "bin", "go_loop.exe")
+        
+        exe_path = get_go_file_path("go_loop.exe")
         if not os.path.exists(exe_path):
             worker.log.emit(f"❌ Không tìm thấy executable: {exe_path}")
             return False
@@ -417,8 +449,8 @@ def run_go_convert(worker, input_path, output_path, input_ext, output_ext):
             worker.log.emit("⚠ Không tìm thấy file cần convert.")
             return False
 
-        project_dir = os.getcwd()
-        exe_path = os.path.join(project_dir, "bin", "go_convert.exe")
+        
+        exe_path = get_go_file_path("go_convert.exe")
 
         for idx, file_path in enumerate(input_files):
             if worker.is_stopped():
