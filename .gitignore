@@ -25,7 +25,10 @@ lib64/
 parts/
 sdist/
 var/
-assets/
+assets/ffmpeg
+_internal/
+build/
+dist/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -100,3 +103,5 @@ temp/
 *.flv
 *.mov
 *.mp3
+*.zip
+*.rar
