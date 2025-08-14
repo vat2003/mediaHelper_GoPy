@@ -4,11 +4,117 @@ from PyQt6.QtWidgets import (
     QApplication, QWidget, QTabWidget, QVBoxLayout,
     QPushButton, QLabel, QFileDialog, QLineEdit, QGridLayout, QComboBox, QMessageBox, QProgressBar, QTextEdit, QHBoxLayout, QSpinBox, QWidget, QGridLayout
 )
+import requests
+import zipfile
+import json
+import shutil
 from PyQt6.QtGui import QIcon
 import pyperclip
 from helpers import run_go_convert, run_go_loop, run_go_merge, run_go_random_merge, run_go_extract_audio, run_go_videoScale, get_duration_ffmpeg
 from ui.workers import BaseWorker
 from functools import partial
+
+import requests, json, zipfile, os, shutil, sys, subprocess
+from packaging import version
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit, QPushButton, QMessageBox, QProgressDialog
+
+APP_VERSION = "1.2.0"  # Phiên bản hiện tại
+
+class UpdateTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.vlayout = QVBoxLayout()
+
+        self.info_label = QLabel(f"Phiên bản hiện tại: {APP_VERSION}")
+        self.vlayout.addWidget(self.info_label)
+
+        self.changelog = QTextEdit()
+        self.changelog.setReadOnly(True)
+        self.vlayout.addWidget(self.changelog)
+
+        self.check_btn = QPushButton("🔍 Kiểm tra cập nhật")
+        self.check_btn.clicked.connect(self.check_update)
+        self.vlayout.addWidget(self.check_btn)
+
+        self.setLayout(self.vlayout)
+
+    def check_update(self):
+        try:
+            url = "https://www.dropbox.com/scl/fi/oiggh3m4d9qbtxyw8iqxm/version.json?rlkey=yt8908hx3vk1bkehtksipn4n6&dl=1"
+            resp = requests.get(url, timeout=5)
+            data = json.loads(resp.text)
+
+            latest_version = data["version"]
+            download_url = data["url"]
+            changelog = data.get("changelog", "")
+
+            self.changelog.setPlainText(changelog)
+
+            if version.parse(latest_version) > version.parse(APP_VERSION):
+                reply = QMessageBox.question(
+                    self,
+                    "Có bản cập nhật mới",
+                    f"Phiên bản mới: {latest_version}\nBạn có muốn tải và cập nhật không?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                if reply == QMessageBox.StandardButton.Yes:
+                    self.download_and_update(download_url)
+            else:
+                QMessageBox.information(self, "Thông báo", "Bạn đang dùng phiên bản mới nhất.")
+        except Exception as e:
+            QMessageBox.warning(self, "Lỗi", f"Không thể kiểm tra cập nhật:\n{e}")
+
+    def download_and_update(self, url):
+        try:
+            zip_path = "update.zip"
+
+            # Hiển thị tiến trình tải
+            resp = requests.get(url, stream=True)
+            total_size = int(resp.headers.get("content-length", 0))
+            downloaded = 0
+
+            progress = QProgressDialog("Đang tải bản cập nhật...", "Hủy", 0, 100, self)
+            progress.setWindowTitle("Cập nhật")
+            progress.setValue(0)
+            progress.show()
+
+            with open(zip_path, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total_size > 0:
+                            progress.setValue(int(downloaded / total_size * 100))
+                        if progress.wasCanceled():
+                            return
+
+            # Giải nén vào thư mục tạm
+            extract_dir = "update_temp"
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_dir)
+
+            os.remove(zip_path)
+
+            # Tạo file batch để ghi đè sau khi thoát
+            batch_content = f"""
+                @echo off
+                timeout /t 2 /nobreak >nul
+                xcopy "{extract_dir}" "{os.getcwd()}" /E /H /Y
+                rmdir /S /Q "{extract_dir}"
+                start "" "{sys.executable}"
+                            """
+
+            batch_file = "update.bat"
+            with open(batch_file, "w", encoding="utf-8") as f:
+                f.write(batch_content)
+
+            QMessageBox.information(self, "Hoàn tất", "Ứng dụng sẽ tự cập nhật khi bạn đóng.")
+            subprocess.Popen(["cmd", "/c", batch_file])
+            sys.exit(0)
+
+        except Exception as e:
+            QMessageBox.warning(self, "Lỗi", f"Cập nhật thất bại:\n{e}")
+
 
 class VideoScaleTab(QWidget):
     def __init__(self):
@@ -868,6 +974,7 @@ class MainWindow(QWidget):
         self.tabs.addTab(MergeMediaTab(), "Merge Media")
         self.tabs.addTab(MergeRandomTab(), "Merge Random")
         self.tabs.addTab(TracklistTab(), "Tracklist")
+        self.tabs.addTab(UpdateTab(), "Update")
 
         layout = QVBoxLayout()
         layout.addWidget(self.tabs)
