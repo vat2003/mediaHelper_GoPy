@@ -9,7 +9,7 @@ import zipfile
 import json
 from PyQt6.QtGui import QIcon
 import pyperclip
-from helpers import run_go_convert, run_go_loop, run_go_merge, run_go_random_merge, run_go_extract_audio, run_go_videoScale, get_duration_ffmpeg
+from helpers import run_go_convert, run_go_loop, run_go_merge, run_go_random_merge, run_go_extract_audio, run_go_videoScale, get_duration_ffmpeg, run_go_rename
 from ui.workers import BaseWorker
 from functools import partial
 
@@ -951,10 +951,123 @@ class ExtractAudioTab(QWidget):
         if self.worker and self.worker.isRunning():
             self.worker.stop()
 
+class RenameTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.worker = None
+        layout = QGridLayout()
+
+        # Input Folder
+        input_label = QLabel("🎬 Input Folder:")
+        self.input_path = QLineEdit()
+        input_browse_btn = QPushButton("Browse")
+        input_browse_btn.clicked.connect(self.input_browse_folder)
+        layout.addWidget(input_label, 0, 0)
+        layout.addWidget(self.input_path, 0, 1)
+        layout.addWidget(input_browse_btn, 0, 2)
+
+        # Prefix | Suffix
+        layout.addWidget(QLabel("🔤 Prefix:"), 2, 0)
+        self.prefix_input = QLineEdit()
+        layout.addWidget(self.prefix_input, 2, 1, 1, 2)
+
+        layout.addWidget(QLabel("🔤 Suffix:"), 3, 0)
+        self.suffix_input = QLineEdit()
+        layout.addWidget(self.suffix_input, 3, 1, 1, 2)
+
+        # Remove Characters
+        layout.addWidget(QLabel("❌ Remove Characters:"), 4, 0)
+        self.remove_input = QLineEdit()
+        self.remove_input.setPlaceholderText("Ví dụ: t,s,a")
+        layout.addWidget(self.remove_input, 4, 1, 1, 2)
+
+        # Rename Button
+        self.convert_btn = QPushButton("🚀 Rename Now")
+        self.convert_btn.clicked.connect(self.rename_files)
+        layout.addWidget(self.convert_btn, 5, 0, 1, 3)
+
+        # Progress + Stop
+        self.progress_bar = QProgressBar()
+        self.stop_btn = QPushButton("🛑 Stop")
+        self.stop_btn.setEnabled(False)  # mặc định disable
+        self.stop_btn.clicked.connect(self.stop_worker)
+
+        progress_layout = QHBoxLayout()
+        progress_layout.addWidget(self.progress_bar, 4)
+        progress_layout.addWidget(self.stop_btn, 1)
+        layout.addLayout(progress_layout, 6, 0, 1, 3)
+
+        # Log Output
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
+        layout.addWidget(self.log_text, 7, 0, 1, 3)
+
+        self.setLayout(layout)
+
+    def input_browse_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Input Folder")
+        if folder:
+            self.input_path.setText(folder)
+
+    def rename_files(self):
+        self.convert_btn.setEnabled(False)
+        self.stop_btn.setEnabled(True)
+
+        input_folder = self.input_path.text().strip()
+        prefix = self.prefix_input.text().strip()
+        suffix = self.suffix_input.text().strip()
+        remove_chars = self.remove_input.text().strip()
+
+        if not os.path.isdir(input_folder):
+            QMessageBox.warning(self.window(), "Lỗi", "Input folder không hợp lệ.")
+            self.convert_btn.setEnabled(True)
+            self.stop_btn.setEnabled(False)
+            return
+
+        # chuẩn hóa remove_chars: "t,s,a" -> "tsa"
+        if "," in remove_chars:
+            remove_chars = remove_chars.replace(",", "")
+
+        self.progress_bar.setValue(0)
+        self.log_text.clear()
+
+        self.worker = BaseWorker(
+            partial(
+                run_go_rename,
+                input_path=input_folder,
+                prefix=prefix,
+                suffix=suffix,
+                remove_chars=remove_chars,
+            )
+        )
+        self.worker.progress.connect(self.update_progress)
+        self.worker.log.connect(self.append_log)
+        self.worker.finished.connect(self.on_rename_finished)
+        self.worker.start()
+
+    def stop_worker(self):
+        if self.worker and self.worker.isRunning():
+            self.worker.stop()
+
+    def update_progress(self, value):
+        self.progress_bar.setValue(value)
+
+    def append_log(self, message):
+        self.log_text.append(message)
+
+    def on_rename_finished(self, success):
+        self.convert_btn.setEnabled(True)
+        self.stop_btn.setEnabled(False)
+        if success:
+            QMessageBox.information(self.window(), "✅ Thành công", "Đã rename xong!")
+        else:
+            QMessageBox.warning(self.window(), "⚠️ Dừng / Lỗi", "Rename đã bị dừng hoặc có lỗi.")
+
+
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.resize(700, 400)
+        self.resize(800, 400)
         self.setWindowTitle("Media Tools")
         # Kiểm tra đường dẫn tới file icon
         if os.path.exists("assets/icon.ico"):
@@ -974,6 +1087,9 @@ class MainWindow(QWidget):
         self.tabs.addTab(MergeRandomTab(), "Merge Random")
         self.tabs.addTab(TracklistTab(), "Tracklist")
         self.tabs.addTab(UpdateTab(), "Update")
+        self.tabs.addTab(RenameTab(), "Rename")
+
+         # Layout chính
 
         layout = QVBoxLayout()
         layout.addWidget(self.tabs)

@@ -70,6 +70,62 @@ def seconds_to_hhmmss(seconds):
     s = int(seconds % 60)
     return f"{h:02}:{m:02}:{s:02}"
 
+def run_go_rename(worker, input_path, start_number=1, padding=3, ext="", prefix="", suffix="", remove_chars=""):
+    try:
+        # Lấy tất cả file trong thư mục input_path với đuôi mở rộng đã cho
+        if ext:
+            input_files = glob.glob(os.path.join(input_path, f"*{ext.lower()}"))
+        else:
+            input_files = [f for f in glob.glob(os.path.join(input_path, "*")) if os.path.isfile(f)]
+
+        total = len(input_files)
+        if total == 0:
+            worker.log.emit("⚠ Không tìm thấy file để đổi tên.")
+            return False
+
+        # Đường dẫn đến binary Go
+        exe_path = get_go_file_path("go_rename.exe")
+
+        for idx, file_path in enumerate(input_files):
+            if worker.is_stopped():
+                worker.log.emit("🛑 Dừng đổi tên theo yêu cầu.")
+                return False
+
+            filename = Path(file_path).stem
+            file_ext = Path(file_path).suffix
+
+            # Tạo prefix/suffix từ pattern (nếu muốn dùng {num}, {name})
+            dynamic_prefix = prefix.replace("{num}", str(start_number + idx).zfill(padding)).replace("{name}", filename)
+            dynamic_suffix = suffix.replace("{num}", str(start_number + idx).zfill(padding)).replace("{name}", filename)
+
+            # Gọi file thực thi go_rename với các tham số
+            cmd = [exe_path, file_path, dynamic_prefix, dynamic_suffix, remove_chars]
+
+            # Gọi subprocess
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
+
+            if result.returncode != 0:
+                worker.log.emit(f"❌ Lỗi đổi tên: {Path(file_path).name}")
+                worker.log.emit(f"📄 STDOUT:\n{result.stdout}")
+                worker.log.emit(f"🐛 STDERR:\n{result.stderr}")
+                continue
+
+            # Lấy tên mới từ stdout (Go in ra newName)
+            stdout_lines = result.stdout.strip().splitlines()
+            new_name = stdout_lines[-1] if stdout_lines else "(không rõ)"
+
+            worker.log.emit(f"✅ Đã đổi tên: {Path(file_path).name} ➜ {new_name}")
+
+            # Cập nhật tiến độ
+            percent = int((idx + 1) / total * 100)
+            worker.progress.emit(percent)
+
+        return True
+
+    except Exception as e:
+        worker.log.emit(f"❌ Exception: {e}")
+        return False
+
 def run_go_videoScale(
     worker,
     input_path,
