@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Media Helper"
-#define MyAppVersion "1.2.2"
+#define MyAppVersion "1.2.3"
 #define MyAppPublisher "Anh Tai"
 #define MyAppURL "https://github.com/vat2003/mediaHelper_GoPy"
 #define MyAppExeName "main.exe"
@@ -21,7 +21,7 @@ AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName=C:/{#MyAppName}
 DefaultGroupName={#MyAppName}
-OutputBaseFilename=MediaHelperSetup
+OutputBaseFilename=MediaHelperSetup_{#MyAppVersion}
 SetupIconFile=C:\GoProjects\dist\main\_internal\assets\icon.ico
 Compression=lzma
 SolidCompression=yes
