@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"go_modules/utils"
 	"log"
 	"os"
 	"os/exec"
@@ -10,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/vat2003/mediaHelper_GoPy/go_modules/utils"
 )
 
 func getDuration(input string) (float64, error) {

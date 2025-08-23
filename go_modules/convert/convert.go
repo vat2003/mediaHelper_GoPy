@@ -3,12 +3,13 @@ package main
 
 import (
 	"fmt"
-	"go_modules/utils"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/vat2003/mediaHelper_GoPy/go_modules/utils"
 )
 
 func main() {

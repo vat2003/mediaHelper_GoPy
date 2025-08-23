@@ -8,7 +8,7 @@ import (
 	"strings"
 	"syscall"
 
-	"go_modules/utils"
+	"github.com/vat2003/mediaHelper_GoPy/go_modules/utils"
 )
 
 func main() {

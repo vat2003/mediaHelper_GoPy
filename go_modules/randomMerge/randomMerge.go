@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"go_modules/utils"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -12,6 +11,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/vat2003/mediaHelper_GoPy/go_modules/utils"
 )
 
 var videoExts = []string{".mp4", ".avi", ".mkv", ".mov", ".flv"}
