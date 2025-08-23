@@ -2,13 +2,14 @@ package main
 
 import (
 	"fmt"
-	"go_modules/utils"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/vat2003/mediaHelper_GoPy/go_modules/utils"
 )
 
 var mediaExts = map[string]bool{

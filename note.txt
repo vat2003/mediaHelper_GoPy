@@ -1,0 +1,14 @@
+go build -ldflags="-H=windowsgui" -o bin/go_extractAudio.exe go_modules/extractAudio/extractAudio.go
+
+UPDATED NEW FUNCTION
+- CHANGED VERSION IN 'main.py'
+- BUILD: pyinstaller --noconsole --onedir --add-data "assets;assets" --add-data "bin;bin" --icon=assets/icon.ico main.py
+- CHANGED VERSION IN 'Scripts.iss'
+
+- ZIP FILE -> UPLOAD to DropBox(vatjsm@gmail.com)
+
+- CHANGED LINK DOWNLOAD ZIP FILE - VERSION - MESSAGES IN 'version.json'
+
+- 'version' -> UPLOAD to DropBox(vatjsm@gmail.com)
+
+- REPLACE setup file IN GOOGLE DRIVE(vatjsm@gmail.com)
