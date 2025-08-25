@@ -434,7 +434,8 @@ def run_go_loop(worker, input_path, output_path, loop_value="1", mode="default")
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                encoding='utf-8'
+                encoding='utf-8',
+                errors='replace' # 👈 tránh UnicodeDecodeError
             )
             worker.current_process = process
 
