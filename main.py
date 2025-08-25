@@ -13,7 +13,7 @@ from helpers import run_go_convert, run_go_loop, run_go_merge, run_go_random_mer
 from ui.workers import BaseWorker
 from functools import partial
 
-import requests, json, zipfile, os, shutil, sys, subprocess
+import requests, json, zipfile, os, sys, subprocess
 from packaging import version
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit, QPushButton, QMessageBox, QProgressDialog
 
@@ -1088,11 +1088,10 @@ class MainWindow(QWidget):
         self.tabs.addTab(MergeMediaTab(), "Merge Media")
         self.tabs.addTab(MergeRandomTab(), "Merge Random")
         self.tabs.addTab(TracklistTab(), "Tracklist")
-        self.tabs.addTab(UpdateTab(), "Update")
         self.tabs.addTab(RenameTab(), "Rename")
 
-         # Layout chính
-
+        # Layout chính
+        self.tabs.addTab(UpdateTab(), "Update")
         layout = QVBoxLayout()
         layout.addWidget(self.tabs)
         self.setLayout(layout)
