@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Media Helper"
-#define MyAppVersion "1.2.3"
+#define MyAppVersion "1.2.4"
 #define MyAppPublisher "Anh Tai"
 #define MyAppURL "https://github.com/vat2003/mediaHelper_GoPy"
 #define MyAppExeName "main.exe"

@@ -9,7 +9,7 @@ import zipfile
 import json
 from PyQt6.QtGui import QIcon
 import pyperclip
-from helpers import run_go_convert, run_go_loop, run_go_merge, run_go_random_merge, run_go_extract_audio, run_go_videoScale, get_duration_ffmpeg, run_go_rename
+from helpers import run_go_convert, run_go_loop, run_go_merge, run_go_random_merge, run_go_extract_audio, run_go_videoScale, get_duration_ffmpeg, run_go_rename, run_go_concatFromPaths
 from ui.workers import BaseWorker
 from functools import partial
 
@@ -765,12 +765,17 @@ class ConvertTab(QWidget):
 class TracklistTab(QWidget):
     def __init__(self):
         super().__init__()
+        self.worker = None
+
         layout = QGridLayout()
         
-        # Input
+        # ========== Input ==========
         input_label = QLabel("📜 Input Tracklist (mỗi dòng là 1 file):")
         self.input_text = QTextEdit()
-        self.input_text.setPlaceholderText("Nhập đường dẫn các file (mỗi dòng 1 file) / Ctrl + Shift + C để copy đuờng dẫn từ file explorer")
+        self.input_text.setPlaceholderText(
+            "Nhập đường dẫn các file (mỗi dòng 1 file)\n"
+            "Mẹo: Ctrl + Shift + C để copy đường dẫn từ File Explorer"
+        )
 
         input_button_layout = QHBoxLayout()
         copy_input_btn = QPushButton("📋 Copy Input")
@@ -781,7 +786,7 @@ class TracklistTab(QWidget):
         layout.addWidget(self.input_text, 1, 0)
         layout.addLayout(input_button_layout, 2, 0)
 
-        # Output
+        # ========== Output (tracklist preview) ==========
         output_label = QLabel("📄 Tracklist Output:")
         self.output_text = QTextEdit()
         self.output_text.setReadOnly(True)
@@ -798,20 +803,47 @@ class TracklistTab(QWidget):
         layout.addWidget(self.output_text, 1, 1)
         layout.addLayout(output_button_layout, 2, 1)
 
-        # Generate
+        # ========== Concat controls ==========
+        # concat_label = QLabel("🧩 Concat từ Input Tracklist")
+        # layout.addWidget(concat_label, 3, 0, 1, 2)
+
+        # Output folder cho concat
+        of_label = QLabel("📁 Output Folder:")
+        self.concat_output_dir = QLineEdit()
+        of_browse = QPushButton("Browse")
+        of_browse.clicked.connect(self.browse_concat_output)
+
+        of_row = QHBoxLayout()
+        of_row.addWidget(self.concat_output_dir, 1)
+        of_row.addWidget(of_browse)
+
+        layout.addWidget(of_label, 3, 0)
+        layout.addLayout(of_row, 3, 1)
+
+        # Nút Concat
+        self.concat_btn = QPushButton("🧩 Concat từ Input Tracklist")
+        self.concat_btn.clicked.connect(self.concat_from_input)
+        layout.addWidget(self.concat_btn, 4, 0, 1, 2)
+
+        # ========== Generate tracklist (HH:MM:SS) ==========
         self.generate_btn = QPushButton("🚀 Generate Tracklist (HH:MM:SS)")
         self.generate_btn.clicked.connect(self.generate_tracklist)
-        layout.addWidget(self.generate_btn, 3, 0, 1, 2)
+        layout.addWidget(self.generate_btn, 5, 0, 1, 2)
 
         self.setLayout(layout)
 
+    # ---------- Helpers ----------
+    def _get_input_paths(self):
+        raw_text = self.input_text.toPlainText()
+        paths = [line.strip().strip('"') for line in raw_text.splitlines() if line.strip()]
+        return paths
+
+    # ---------- Buttons ----------
     def copy_input(self):
-        text = self.input_text.toPlainText()
-        pyperclip.copy(text)
+        pyperclip.copy(self.input_text.toPlainText())
 
     def copy_output(self):
-        text = self.output_text.toPlainText()
-        pyperclip.copy(text)
+        pyperclip.copy(self.output_text.toPlainText())
     
     def export_output(self):
         file_path, _ = QFileDialog.getSaveFileName(self, "Lưu file tracklist", "", "Text Files (*.txt)")
@@ -822,10 +854,15 @@ class TracklistTab(QWidget):
                 QMessageBox.information(self.window(), "Thành công", "Đã lưu file tracklist!")
             except Exception as e:
                 QMessageBox.warning(self.window(), "Lỗi", f"Không thể lưu file: {e}")
-    
+
+    def browse_concat_output(self):
+        folder = QFileDialog.getExistingDirectory(self, "Chọn thư mục xuất concat")
+        if folder:
+            self.concat_output_dir.setText(folder)
+
+    # ---------- Generate Tracklist ----------
     def generate_tracklist(self):
-        raw_text = self.input_text.toPlainText()
-        paths = [line.strip().strip('"') for line in raw_text.splitlines() if line.strip()]
+        paths = self._get_input_paths()
         if not paths:
             QMessageBox.warning(self.window(), "Thiếu dữ liệu", "Vui lòng nhập ít nhất 1 đường dẫn.")
             return
@@ -839,16 +876,13 @@ class TracklistTab(QWidget):
     def build_tracklist(self, paths):
         lines = []
         current_time = 0.0
-
         for path in paths:
             duration = get_duration_ffmpeg(path)
             start_time = self.seconds_to_hhmmss(current_time)
             filename = os.path.basename(path)
             name, _ = os.path.splitext(filename)
-            line = f"[{start_time}] {name}"
-            lines.append(line)
+            lines.append(f"[{start_time}] {name}")
             current_time += duration
-
         return "\n".join(lines)
 
     def seconds_to_hhmmss(self, seconds):
@@ -856,6 +890,48 @@ class TracklistTab(QWidget):
         m = int((seconds % 3600) // 60)
         s = int(seconds % 60)
         return f"{h:02d}:{m:02d}:{s:02d}"
+
+    # ---------- Concat ----------
+    def concat_from_input(self):
+        self.output_text.clear()  # Xoá output text cũ (nếu có)
+         # Lấy danh sách đường dẫn từ input
+        paths = self._get_input_paths()
+        if not paths:
+            QMessageBox.warning(self.window(), "Thiếu dữ liệu", "Vui lòng nhập ít nhất 1 đường dẫn.")
+            return
+
+        out_dir = self.concat_output_dir.text().strip()
+        if not out_dir:
+            QMessageBox.warning(self.window(), "Thiếu Output", "Vui lòng chọn Output Folder để xuất file concat.")
+            return
+
+        try:
+            os.makedirs(out_dir, exist_ok=True)
+        except Exception as e:
+            QMessageBox.critical(self.window(), "Lỗi", f"Không tạo được thư mục output:\n{e}")
+            return
+
+        # Disable button khi đang chạy
+        self.concat_btn.setEnabled(False)
+
+        # Gọi worker chạy go_concatPaths.exe qua helpers
+        self.worker = BaseWorker(partial(run_go_concatFromPaths, output_folder=out_dir, paths=paths))
+        self.worker.finished.connect(self.on_concat_finished)
+        # Nếu muốn xem log concat đổ vào output_text:
+        self.worker.log.connect(self._append_concat_log)
+        self.worker.start()
+
+    def _append_concat_log(self, msg: str):
+        # Đẩy log concat vào cuối ô output (không ghi đè tracklist sẵn có)
+        cur = self.output_text.toPlainText()
+        self.output_text.setPlainText((cur + ("\n" if cur else "") + msg).strip())
+
+    def on_concat_finished(self, success: bool):
+        self.concat_btn.setEnabled(True)
+        if success:
+            QMessageBox.information(self.window(), "✅ Thành công", "Đã concat xong!")
+        else:
+            QMessageBox.warning(self.window(), "⚠️ Dừng / Lỗi", "Concat đã bị dừng hoặc xảy ra lỗi.")
 
 class ExtractAudioTab(QWidget):
     def __init__(self):
@@ -1087,7 +1163,7 @@ class MainWindow(QWidget):
         self.tabs.addTab(ExtractAudioTab(), "Extract Audio")
         self.tabs.addTab(MergeMediaTab(), "Merge Media")
         self.tabs.addTab(MergeRandomTab(), "Merge Random")
-        self.tabs.addTab(TracklistTab(), "Tracklist")
+        self.tabs.addTab(TracklistTab(), "Tracklist/Concat")
         self.tabs.addTab(RenameTab(), "Rename")
 
         # Layout chính

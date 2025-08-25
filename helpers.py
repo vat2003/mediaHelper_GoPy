@@ -71,6 +71,95 @@ def seconds_to_hhmmss(seconds):
     s = int(seconds % 60)
     return f"{h:02}:{m:02}:{s:02}"
 
+def run_go_concatFromPaths(worker, output_folder, paths=None, list_txt_path=None):
+    """
+    Ghép các media theo thứ tự:
+    - Dùng list 'paths' (list[str] hoặc str nhiều dòng)
+      HOẶC
+    - Dùng 'list_txt_path' trỏ tới file .txt (mỗi dòng 1 path)
+
+    Yêu cầu: đã có helpers.spawn_process(worker, cmd) và get_go_file_path().
+    """
+    try:
+        # ---- Chuẩn bị tham số đầu vào
+        os.makedirs(output_folder, exist_ok=True)
+
+        exe_path = get_go_file_path("go_concatFromPaths.exe")
+        if not os.path.exists(exe_path):
+            worker.log.emit(f"❌ Không tìm thấy executable: {exe_path}")
+            return False
+
+        arg_mode = None
+        arg_list = []
+
+        # Ưu tiên list_txt_path nếu có
+        if list_txt_path and os.path.isfile(list_txt_path):
+            arg_mode = "txt"
+            arg_list = [list_txt_path]
+        else:
+            # Chuẩn hoá 'paths'
+            if isinstance(paths, str):
+                # Cho phép truyền chuỗi nhiều dòng
+                raw_lines = [line.strip() for line in paths.splitlines()]
+                arg_list = [ln.strip('"') for ln in raw_lines if ln]
+            elif isinstance(paths, (list, tuple)):
+                arg_list = [str(p) for p in paths if str(p).strip()]
+            else:
+                arg_list = []
+
+            if not arg_list:
+                worker.log.emit("⚠ Không có đường dẫn hợp lệ để ghép (paths/list_txt_path trống).")
+                return False
+
+            arg_mode = "list"
+
+        # ---- Build lệnh
+        cmd = [exe_path, output_folder] + arg_list
+        worker.log.emit("🚀 Bắt đầu ghép theo danh sách đường dẫn...")
+        worker.log.emit(f"🔧 Lệnh: {cmd[0]} ... ({'txt' if arg_mode=='txt' else f'{len(arg_list)} paths'})")
+
+        # ---- Spawn + stream (stderr gộp stdout); Stop dừng ngay
+        p = spawn_process(worker, cmd)
+        buf_out = []
+
+        if p.stdout:
+            for raw in p.stdout:
+                if worker.is_stopped():
+                    # cố gắng thoát êm; BaseWorker.stop() sẽ terminate/kill cả cây
+                    try:
+                        if p.stdin and not p.stdin.closed:
+                            p.stdin.write("q\n"); p.stdin.flush()
+                    except Exception:
+                        pass
+                    break
+                line = (raw or "").rstrip()
+                if line:
+                    buf_out.append(line)
+                    worker.log.emit(line)
+
+        rc = p.wait() if not worker.is_stopped() else p.poll()
+
+        if worker.is_stopped():
+            worker.log.emit("🛑 Đã dừng concat theo yêu cầu.")
+            return False
+
+        if rc != 0:
+            worker.log.emit(f"❌ Lỗi concat (rc={rc})")
+            if buf_out:
+                worker.log.emit("📄 STDOUT:\n" + "\n".join(buf_out))
+            # STDERR đã gộp vào STDOUT trong spawn_process
+            return False
+
+        worker.log.emit("✅ Hoàn tất concat từ danh sách đường dẫn.")
+        worker.progress.emit(100)
+        return True
+
+    except Exception as e:
+        worker.log.emit(f"❌ Exception: {e}")
+        return False
+
+
+
 def run_go_rename(worker, input_path, start_number=1, padding=3, ext="", prefix="", suffix="", remove_chars=""):
     try:
         # Lấy tất cả file trong thư mục input_path với đuôi mở rộng đã cho
