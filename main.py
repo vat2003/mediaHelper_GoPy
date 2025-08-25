@@ -442,12 +442,14 @@ class MergeRandomTab(QWidget):
         layout.addWidget(QLabel("📄 Input File Count:"), 2, 0)
         self.input_count_input = QSpinBox()
         self.input_count_input.setMinimum(0)
+        self.input_count_input.setMaximum(999999)
         layout.addWidget(self.input_count_input, 2, 1, 1, 2)
 
         # Output Count
         layout.addWidget(QLabel("📄 Output File Count:"), 3, 0)
         self.output_count_input = QSpinBox()
         self.output_count_input.setMinimum(1)
+        self.output_count_input.setMaximum(999999)
         layout.addWidget(self.output_count_input, 3, 1, 1, 2)
 
         # Merge button
