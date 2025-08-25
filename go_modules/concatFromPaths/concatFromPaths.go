@@ -96,7 +96,7 @@ func resolveInputPaths(args []string) ([]string, error) {
 func readPathsFromFile(listPath string) ([]string, error) {
 	f, err := os.Open(listPath)
 	if err != nil {
-		return nil, fmt.Errorf("Không mở được file danh sách: %v", err)
+		return nil, fmt.Errorf("không mở được file danh sách: %v", err)
 	}
 	defer f.Close()
 
@@ -111,7 +111,7 @@ func readPathsFromFile(listPath string) ([]string, error) {
 		paths = append(paths, line)
 	}
 	if err := sc.Err(); err != nil {
-		return nil, fmt.Errorf("Lỗi đọc file danh sách: %v", err)
+		return nil, fmt.Errorf("lỗi đọc file danh sách: %v", err)
 	}
 	return paths, nil
 }
@@ -133,7 +133,7 @@ func fileExists(path string) bool {
 
 func concatFromPaths(files []string, outputFolder string) error {
 	if len(files) == 0 {
-		return errors.New("Danh sách file trống")
+		return errors.New("danh sách file trống")
 	}
 
 	ext := getOutputExtension(files)
@@ -143,7 +143,7 @@ func concatFromPaths(files []string, outputFolder string) error {
 	tempListPath := filepath.Join(os.TempDir(), fmt.Sprintf("temp_list_%d.txt", ts))
 
 	if err := createTempConcatList(files, tempListPath); err != nil {
-		return fmt.Errorf("Không thể tạo danh sách tạm: %w", err)
+		return fmt.Errorf("không thể tạo danh sách tạm: %w", err)
 	}
 
 	fmt.Println("🚀 Bắt đầu ghép:", outputPath)

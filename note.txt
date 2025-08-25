@@ -12,3 +12,19 @@ UPDATED NEW FUNCTION
 - 'version' -> UPLOAD to DropBox(vatjsm@gmail.com)
 
 - REPLACE setup file IN GOOGLE DRIVE(vatjsm@gmail.com)
+
+
+--------------------- RELEASES SETUP
+# Kiểm tra trạng thái
+git status
+
+# Commit tất cả thay đổi
+git add .
+git commit -m "Release v1.0.0"
+
+# Tạo tag (annotated tag để có mô tả)
+git tag -a v1.0.0 -m "First release v1.0.0"
+
+# Đẩy commit và tag lên remote
+git push origin main
+git push origin v1.0.0
