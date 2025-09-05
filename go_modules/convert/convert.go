@@ -32,7 +32,7 @@ func main() {
 	var args []string
 	switch ext {
 	case ".mov":
-		// Remux MOV, bỏ stream Data (tmcd) cho sạch
+		// Bước 1: thử remux nhanh (copy)
 		args = []string{
 			"-hide_banner", "-y", "-i", inputFile,
 			"-map", "0:v:0", "-map", "0:a?", "-map", "-0:d",
@@ -40,15 +40,79 @@ func main() {
 			outputFile,
 		}
 
+		// Chạy thử remux
+		cmd := exec.Command(ffmpeg, args...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+
+		if err := cmd.Run(); err != nil {
+			fmt.Println("⚠️ Remux thất bại → fallback sang encode...")
+
+			// Bước 2: fallback encode (NVENC)
+			args = []string{
+				"-hide_banner", "-y", "-i", inputFile,
+				"-map", "0:v:0", "-map", "0:a?", "-map", "-0:d",
+
+				// Video NVENC
+				"-c:v", "h264_nvenc",
+				"-preset", "p4",
+				"-profile:v", "high",
+				"-level", "5.1",
+				"-vf", "format=yuv420p",
+
+				// Rate control
+				"-rc", "vbr",
+				"-cq", "23",
+				"-b:v", "0",
+
+				// Audio
+				"-c:a", "aac",
+				"-b:a", "192k",
+				"-ar", "48000",
+				"-ac", "2",
+
+				// MOV container
+				outputFile,
+			}
+
+			cmd = exec.Command(ffmpeg, args...)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+
+			if err := cmd.Run(); err != nil {
+				fmt.Println("❌ Encode MOV thất bại:", err)
+				os.Exit(2)
+			}
+		}
+
 	case ".mp4":
-		// ProRes/DNxHD -> H.264/AAC (convert 4:2:2 -> 4:2:0 trước khi NVENC)
 		args = []string{
 			"-hide_banner", "-y", "-i", inputFile,
 			"-map", "0:v:0", "-map", "0:a?", "-map", "-0:d",
-			"-vf", "format=yuv420p",
-			"-c:v", "h264_nvenc", "-preset", "p2",
-			"-c:a", "aac", "-b:a", "192k",
+
+			// Video: NVENC + chất lượng cố định
+			"-vf", "format=yuv420p", //Chuyển màu về YUV 4:2:0 (chuẩn bắt buộc để tương thích hầu hết player, YouTube/Facebook).
+			"-c:v", "h264_nvenc",
+			"-preset", "p4", //p1 nhanh nhất, p7 chậm nhưng chất lượng cao hơn
+			"-profile:v", "high", //Profile H.264, hỗ trợ 8-bit 4:2:0, cần thiết cho streaming.
+			"-level", "5.1", //Cho phép xử lý video 4K đến ~30fps.
+
+			// Rate control: chất lượng cố định (CQ)
+			"-rc", "vbr",
+			"-cq", "23", // 15–23, số càng thấp càng đẹp
+			"-b:v", "0", // để ffmpeg tự chọn bitrate phù hợp
+
+			// Audio
+			"-c:a", "aac",
+			"-b:a", "132k",
+			"-ar", "48000",
+			"-ac", "2",
+
+			// MP4 tối ưu streaming
 			"-movflags", "+faststart",
+
 			outputFile,
 		}
 
