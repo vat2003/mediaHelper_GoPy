@@ -674,7 +674,7 @@ class ConvertTab(QWidget):
         # Output Format ComboBox
         output_format_label = QLabel("🎯 Output Format:")
         self.output_format_combo = QComboBox()
-        self.output_format_combo.addItems([".mp4", ".avi", ".mp3", ".aac", ".wav", ".flv"])
+        self.output_format_combo.addItems([".mp4", ".avi", ".mp3", ".aac", ".wav", ".flv-fullhd-24", ".flv-4k-24", ".flv-4k-30", ".flv-4k-60", ".m4a", ".flac"])
         layout.addWidget(output_format_label, 3, 0)
         layout.addWidget(self.output_format_combo, 3, 1, 1, 2)
 
@@ -703,7 +703,7 @@ class ConvertTab(QWidget):
         self.setLayout(layout)
 
     def update_output_format(self):
-        video_formats = [".mp4", ".avi", ".mov", ".flv"]
+        video_formats = [".mp4", ".avi", ".mov", ".flv-fullhd-24", ".flv-4k-24", ".flv-4k-30", ".flv-4k-60"]
         audio_formats = [".mp3", ".aac", ".wav", ".flac", ".m4a"]
 
         current_input = self.input_format_combo.currentText()
