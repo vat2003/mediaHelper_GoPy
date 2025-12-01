@@ -141,7 +141,12 @@ func main() {
 
 	// Chạy ffmpeg
 	// fmt.Println("INFO: Bắt đầu ffmpeg, output =", outputFile)
-	ffCmd := exec.Command(ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", concatList, "-c", "copy", outputFile)
+	ffCmd := exec.Command(ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+		// "-threads", "1",
+		// "-re",
+		// "-nostdin",
+		"-f", "concat", "-safe", "0", "-i", concatList,
+		"-c", "copy", outputFile)
 	ffCmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	ffCmd.Stdout = os.Stdout
 	ffCmd.Stderr = os.Stderr

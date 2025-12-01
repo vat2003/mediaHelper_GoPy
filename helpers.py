@@ -3,13 +3,63 @@ import os
 import glob
 import random
 import sys
+import shutil
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from process_utils import spawn_process
 import os
 import sys
 import subprocess
 
+def estimate_output_size(file_path: str, loop_count: int) -> int:
+    #"""Ước lượng dung lượng output (bytes)"""
+    p = Path(file_path)
+    if not p.is_file():
+        return 0
+    return p.stat().st_size * loop_count
+
+def get_free_space(path: str) -> int:
+    #"""Trả về dung lượng trống (bytes)"""
+    total, used, free = shutil.disk_usage(path) # returns in bytes
+    return free
+
+def check_disk_space(worker, files, loop_count, output_path, buffer_ratio=1.2):
+    """
+    Kiểm tra dung lượng ổ cứng trước khi loop media.
+
+    Args:
+        worker: object worker để log (BaseWorker)
+        files: list[str] danh sách file input
+        loop_count: int số lần loop (hoặc 1 nếu mode="duration")
+        output_path: str, folder output
+        buffer_ratio: float, thêm buffer để tránh đầy ổ
+
+    Returns:
+        bool: True nếu đủ dung lượng, False nếu không đủ
+    """
+    # Ước lượng dung lượng output
+    # total_estimate = sum(Path(f).stat().st_size * loop_count for f in files)
+    total_estimate = sum(estimate_output_size(f, loop_count) for f in files)
+    total_estimate *= buffer_ratio  # Thêm buffer 20%
+
+    # Lấy dung lượng trống
+    try:
+        free_bytes = get_free_space(output_path)
+    except Exception as e:
+        worker.log.emit(f"⚠ Không thể kiểm tra dung lượng ổ cứng: {e}")
+        return False
+
+    if free_bytes < total_estimate:
+        worker.log.emit(
+            f"❌ Không đủ dung lượng để loop.\n"
+            f"Cần ~{total_estimate/1e9:.2f} GB, ổ chỉ còn {free_bytes/1e9:.2f} GB"
+        )
+        return False
+    else:
+        worker.log.emit(f"✅ Dung lượng đủ (~{total_estimate/1e9:.2f} GB), bắt đầu loop...")
+        return True
+    
 def get_app_base_dir():
     if getattr(sys, 'frozen', False):  
         # App đang chạy ở dạng .exe build từ PyInstaller
@@ -157,7 +207,6 @@ def run_go_concatFromPaths(worker, output_folder, paths=None, list_txt_path=None
     except Exception as e:
         worker.log.emit(f"❌ Exception: {e}")
         return False
-
 
 
 def run_go_rename(worker, input_path, start_number=1, padding=3, ext="", prefix="", suffix="", remove_chars=""):
@@ -594,19 +643,24 @@ def run_go_merge(worker, input_video_image, input_audio, output_path,
 
 MEDIA_EXTS = {'.mp4', '.mkv', '.mov', '.avi', '.flv', '.mp3', '.wav', '.aac'}
 
-def run_go_loop(worker, input_path, output_path, loop_value="1", mode="default"):
+def run_go_loop(worker, input_path, output_path, loop_value="1", mode="default", concurrency=1):
     try:
         p = Path(input_path)
+        # ================================
+        # 1. Lấy danh sách file input như cũ
+        # ================================
         if p.is_file():
             input_files = [str(p)]
         elif p.is_dir():
-            input_files = [str(x) for x in sorted(p.iterdir()) if x.is_file() and x.suffix.lower() in MEDIA_EXTS]
+            input_files = [
+                str(x) for x in sorted(p.iterdir())
+                if x.is_file() and x.suffix.lower() in MEDIA_EXTS
+            ]
         else:
             worker.log.emit(f"❌ Input không tồn tại: {input_path}")
             return False
 
-        total = len(input_files)
-        if total == 0:
+        if not input_files:
             worker.log.emit("⚠ Không tìm thấy file media trong thư mục.")
             return False
 
@@ -616,29 +670,33 @@ def run_go_loop(worker, input_path, output_path, loop_value="1", mode="default")
         if not os.path.exists(exe_path):
             worker.log.emit(f"❌ Không tìm thấy executable: {exe_path}")
             return False
+        
+        # Sau khi đã lấy input_files và loop_count_int
+        if not check_disk_space(worker, input_files, int(loop_value), output_path):
+            return False
 
-        for idx, file_path in enumerate(input_files):
+        total = len(input_files)
+        worker.log.emit(f"➡ Tổng file: {total}, chạy đồng thời: {concurrency}")
+
+        # ================================
+        # 2. Hàm xử lý từng file (copy từ bản gốc)
+        # ================================
+        def process_one(file_path: str):
             if worker.is_stopped():
-                worker.log.emit("🛑 Dừng loop theo yêu cầu.")
                 return False
 
             pfile = Path(file_path)
-            if not pfile.is_file():
-                worker.log.emit(f"⚠ Bỏ qua (không phải file): {file_path}")
-                continue
-
             ext = pfile.suffix or ".mp4"
             output_file = os.path.join(output_path, f"{pfile.stem}_looped{ext}")
-            worker.log.emit(f"🔄 Đang xử lý: {pfile.name}")
 
-            cmd = [exe_path, str(file_path), str(output_file), str(loop_value), str(mode)]
+            cmd = [exe_path, file_path, output_file, str(loop_value), str(mode)]
 
-            # --- Parse dòng log ngay trong stream_process
             has_error = False
+
             def handle_line(line: str):
                 nonlocal has_error
                 line = (line or "").rstrip()
-                if not line: 
+                if not line:
                     return
                 if line.startswith("ERROR:"):
                     has_error = True
@@ -653,46 +711,58 @@ def run_go_loop(worker, input_path, output_path, loop_value="1", mode="default")
 
             # spawn + stream
             proc = spawn_process(worker, cmd)
-            # tùy bạn: nếu stream_process hỗ trợ handler, dùng bản có handler; 
-            # còn nếu không, lặp thủ công giống sau:
+
             if proc.stdout:
                 for raw in proc.stdout:
                     if worker.is_stopped():
-                        # cố gắng thoát êm, BaseWorker.stop() cũng sẽ kill cứng
                         try:
                             if proc.stdin and not proc.stdin.closed:
-                                proc.stdin.write("q\n"); proc.stdin.flush()
+                                proc.stdin.write("q\n")
+                                proc.stdin.flush()
                         except Exception:
                             pass
                         break
                     handle_line(raw)
+
             rc = proc.wait() if not worker.is_stopped() else proc.poll()
 
-            if worker.is_stopped():
-                worker.log.emit("🛑 Dừng tiến trình hiện tại.")
-                return False
-
-            # Kiểm tra kết quả
             if rc != 0:
                 if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
-                    worker.log.emit(f"⚠ Tiến trình trả mã {rc} nhưng file đã tạo: {output_file}")
+                    worker.log.emit(f"⚠ rc={rc} nhưng file đã tạo: {output_file}")
                 else:
-                    worker.log.emit(f"❌ Thất bại (rc={rc}). Bỏ qua: {file_path}")
-                    continue
+                    worker.log.emit(f"❌ Thất bại rc={rc}: {file_path}")
+                    return False
 
             if has_error:
-                # đã thấy ERROR trong log → coi là fail của file này
-                continue
+                return False
 
-            worker.log.emit(f"✅ Đã xử lý: {pfile.as_posix()} ➜ {Path(output_file).as_posix()}")
-            worker.progress.emit(int((idx + 1) / total * 100))
+            worker.log.emit(f"✅ Xong: {pfile.name}")
+            return True
+
+        # ================================
+        # 3. Chạy song song bằng ThreadPool
+        # ================================
+        done_count = 0
+
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            futures = {executor.submit(process_one, f): f for f in input_files}
+
+            for fut in as_completed(futures):
+                _ok = fut.result()
+                done_count += 1
+                worker.progress.emit(int(done_count / total * 100))
+
+                if worker.is_stopped():
+                    worker.log.emit("🛑 Stop toàn bộ tiến trình.")
+                    executor.shutdown(cancel_futures=True)
+                    return False
 
         return True
 
     except Exception as e:
         worker.log.emit(f"Error: {e}")
         return False
-
+    
 def run_go_convert(worker, input_path, output_path, input_ext, output_ext):
     try:
         # Chuẩn hoá ext: đảm bảo có dấu chấm

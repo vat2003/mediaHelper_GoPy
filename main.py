@@ -570,10 +570,20 @@ class LoopTab(QWidget):
         layout.addWidget(loop_value_label, 3, 0)
         layout.addLayout(loop_layout, 3, 1, 1, 2)
 
+        # Concurrent Files
+        concurrent_label = QLabel("📂 Số file xử lý đồng thời:")
+        self.concurrent_input = QSpinBox()
+        self.concurrent_input.setMinimum(1)
+        self.concurrent_input.setMaximum(3)
+        
+
+        layout.addWidget(concurrent_label, 4, 0)
+        layout.addWidget(self.concurrent_input, 4, 1, 1, 2)
+
         # Loop button
         self.convert_btn = QPushButton("🚀 Loop Now")
         self.convert_btn.clicked.connect(self.loop_file)
-        layout.addWidget(self.convert_btn, 4, 0, 1, 3)
+        layout.addWidget(self.convert_btn, 5, 0, 1, 3)
         
         self.progress_bar = QProgressBar()
         self.stop_btn = QPushButton("🛑 Stop")
@@ -583,11 +593,11 @@ class LoopTab(QWidget):
         progress_layout = QHBoxLayout()
         progress_layout.addWidget(self.progress_bar, 4)  # 80%
         progress_layout.addWidget(self.stop_btn, 1)       # 20%
-        layout.addLayout(progress_layout, 5, 0, 1, 3)
+        layout.addLayout(progress_layout, 6, 0, 1, 3)
 
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        layout.addWidget(self.log_text, 6, 0, 1, 3)
+        layout.addWidget(self.log_text, 7, 0, 1, 3)
 
         self.setLayout(layout)
 
@@ -607,13 +617,15 @@ class LoopTab(QWidget):
         output_folder = self.output_path.text()
         loop_value = self.loop_value_input.text()
         mode = self.mode_combo.currentText()
+        concurrent_files = self.concurrent_input.text()
         
         self.worker = BaseWorker(
             partial(run_go_loop, 
                     input_path=input_folder, 
                     output_path=output_folder,
                     loop_value=loop_value,
-                    mode=mode
+                    mode=mode,
+                    concurrency=int(concurrent_files)
                 )
         )
         self.worker.progress.connect(self.update_progress)
