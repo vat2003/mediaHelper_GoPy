@@ -17,7 +17,7 @@ import requests, json, zipfile, os, sys, subprocess
 from packaging import version
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit, QPushButton, QMessageBox, QProgressDialog
 
-APP_VERSION = "1.2.4"  # Phiên bản hiện tại
+APP_VERSION = "1.2.5"  # Phiên bản hiện tại
 
 class UpdateTab(QWidget):
     def __init__(self):
